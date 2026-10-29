@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { changeConditions, confidenceText, renderAdvice, type Advice } from '../engine/advice.ts';
+import { changeConditions, confidenceText, firmUpList, renderAdvice, type Advice } from '../engine/advice.ts';
 import { FACTS, FACT_BY_KEY } from '../engine/facts.ts';
 import { fmtPerMWh, fmtUSD, formatFact } from '../engine/format.ts';
 import { readAssumptions, type ReadLine } from '../engine/inputs.ts';
@@ -182,6 +182,19 @@ export function AdviceView({ advice, onRead, onExample, onOpenReview }: Props) {
           {a.summary ? <p className="advice-summary">{a.summary}</p> : null}
           <p className="small muted">{confidenceText(a)}</p>
 
+          {a.problems.length ? (
+            <div className="advice-section problems" role="alert">
+              <h3>Fix these inputs first</h3>
+              <ul className="advice-list">
+                {a.problems.map((p) => (
+                  <li key={p.key}>
+                    {p.message} The model has {formatFact(p.key, p.value)}; check the units.
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ) : null}
+
           <div className="advice-figures">
             <div className="stat">
               <span className="stat-label">Corrected result (NPV)</span>
@@ -241,6 +254,11 @@ export function AdviceView({ advice, onRead, onExample, onOpenReview }: Props) {
                     <strong>{f.rule.title}.</strong> {f.message} <span className="muted">{f.rule.why}</span>
                   </li>
                 ))}
+                {a.superseded.map((f) => (
+                  <li key={f.rule.id} className="muted">
+                    {f.rule.title} suggested {formatFact(f.rule.benchmark!.input, f.rule.benchmark!.value)}; the more serious check above takes precedence.
+                  </li>
+                ))}
               </ul>
             </div>
           ) : (
@@ -298,14 +316,12 @@ export function AdviceView({ advice, onRead, onExample, onOpenReview }: Props) {
             </div>
           ) : null}
 
-          {a.assumed.length ? (
+          {a.assumed.length || a.rejected.length ? (
             <div className="advice-section">
-              <h3>Not in your inputs, so assumed</h3>
+              <h3>Filled in for you</h3>
               <ul className="advice-list">
-                {a.assumed.map((k) => (
-                  <li key={k}>
-                    {FACT_BY_KEY[k]?.label ?? k}: {formatFact(k, i[k as keyof Inputs] as number)}
-                  </li>
+                {firmUpList(a).map((line) => (
+                  <li key={line}>{line}</li>
                 ))}
               </ul>
             </div>

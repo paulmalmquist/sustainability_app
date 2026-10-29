@@ -1524,3 +1524,16 @@ details.disclosure[open] > summary {
     display: none;
   }
 }
+
+.field-error {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--critical);
+}
+
+.advice-section.problems {
+  padding: 10px 12px;
+  border: 1px solid var(--critical);
+  border-radius: var(--radius);
+  background: var(--critical-wash);
+}

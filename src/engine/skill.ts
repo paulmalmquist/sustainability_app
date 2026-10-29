@@ -52,13 +52,25 @@ export function renderSkill(rules: Rule[], opts: { generatedOn?: string } = {}):
   out.push('');
   out.push('## Input keys');
   out.push('');
-  out.push('| Key | Meaning | Unit | If missing |');
-  out.push('|---|---|---|---|');
+  out.push(
+    'Keys marked **needed** are the minimum for useful advice; anything missing is filled with a benchmark and listed so the user can firm it up. A value outside its valid range is rejected as an error (usually a unit mix-up) and replaced the same way. When you extract a number, note where it came from; the "Best source" column says what a reliable one looks like.',
+  );
+  out.push('');
+  out.push('| Key | Meaning | Unit | Needed | Valid range | Best source | If missing |');
+  out.push('|---|---|---|---|---|---|---|');
   for (const f of FACTS.filter((x) => x.kind === 'input')) {
-    out.push(`| \`${f.key}\` | ${f.label}: ${f.help} | ${UNIT[f.format] ?? (f.options ? f.options.join(', ') : '')} | ${MISSING[f.key] ?? 'Benchmark, reported as assumed'} |`);
+    const unit = UNIT[f.format] ?? (f.options ? f.options.join(', ') : '');
+    const range = f.range ? `${formatFact(f.key, f.range[0])} to ${formatFact(f.key, f.range[1])}` : '';
+    out.push(
+      `| \`${f.key}\` | ${f.label}: ${f.help} | ${unit} | ${f.core ? 'needed' : ''} | ${range} | ${f.source ?? ''} | ${MISSING[f.key] ?? 'Benchmark, reported as assumed'} |`,
+    );
   }
-  out.push('| `annualGenerationMWh` | Annual generation, in place of size or capacity factor | MWh per year | Derived from size × capacity factor |');
-  out.push('| `scenarioName`, `assumptionOwner` | Name of the deal; who supplied the assumptions | text | Generic name; questions addressed generically |');
+  out.push('| `annualGenerationMWh` | Annual generation, in place of size or capacity factor | MWh per year | | | Energy yield assessment (P50) | Derived from size × capacity factor |');
+  out.push('| `scenarioName`, `assumptionOwner` | Name of the deal; who supplied the assumptions | text | | | | Generic name; questions addressed generically |');
+  out.push('');
+  out.push(
+    'When two checks suggest different values for the same input, the more serious check wins (critical over warning, then the larger effect on the result). The calculator does this for you.',
+  );
   out.push('');
   out.push('See `example-inputs.json` for a complete example.');
   out.push('');

@@ -10,6 +10,12 @@ export interface FactDef {
   kind: 'input' | 'derived';
   help: string;
   options?: string[];
+  /** Physically possible values. Anything outside is an error (often a unit mix-up), not just an aggressive assumption. */
+  range?: [number, number];
+  /** Where a reliable value comes from, and what to be wary of. */
+  source?: string;
+  /** Part of the minimal set needed for advice; missing ones are filled with a benchmark and reported. */
+  core?: boolean;
 }
 
 /**
@@ -18,29 +24,29 @@ export interface FactDef {
  * (e.g. "what hub price does this escalation imply in the final year?").
  */
 export const FACTS: FactDef[] = [
-  { key: 'technology', label: 'Technology', format: 'text', kind: 'input', help: 'solar or wind', options: ['solar', 'wind'] },
-  { key: 'market', label: 'Market', format: 'text', kind: 'input', help: 'ISO/RTO the project sits in', options: ['ERCOT', 'PJM', 'MISO', 'SPP', 'CAISO', 'NYISO', 'ISO-NE', 'Other'] },
-  { key: 'capacityMW', label: 'Project size', format: 'mw', kind: 'input', help: 'Contracted capacity, MW AC' },
-  { key: 'capacityFactor', label: 'Capacity factor', format: 'pct', kind: 'input', help: 'Average output as a share of nameplate' },
-  { key: 'degradation', label: 'Output degradation', format: 'pct', kind: 'input', help: 'Annual loss of output' },
-  { key: 'termYears', label: 'Contract term', format: 'years', kind: 'input', help: 'VPPA length in years' },
-  { key: 'strikePrice', label: 'Strike price', format: 'perMWh', kind: 'input', help: 'Fixed VPPA price, year 1' },
-  { key: 'strikeEscalation', label: 'Strike escalator', format: 'pct', kind: 'input', help: 'Annual increase in the strike price' },
-  { key: 'settlementPoint', label: 'Settlement point', format: 'text', kind: 'input', help: 'hub or node', options: ['hub', 'node'] },
-  { key: 'basis', label: 'Basis (node minus hub)', format: 'perMWh', kind: 'input', help: 'Applies only to node settlement' },
-  { key: 'transactionCost', label: 'Transaction costs', format: 'usd', kind: 'input', help: 'One-time legal, advisory, and procurement costs' },
-  { key: 'hubPrice', label: 'Hub price, year 1', format: 'perMWh', kind: 'input', help: 'Around-the-clock wholesale price' },
-  { key: 'wholesaleEscalation', label: 'Wholesale price escalation', format: 'pct', kind: 'input', help: 'Annual growth in wholesale prices' },
-  { key: 'captureRate', label: 'Capture rate', format: 'pct', kind: 'input', help: "Project's generation-weighted price as a share of the around-the-clock price" },
-  { key: 'annualLoadMWh', label: 'Annual load', format: 'mwh', kind: 'input', help: 'Electricity use to be matched with RECs' },
-  { key: 'recPrice', label: 'REC price, year 1', format: 'perMWh', kind: 'input', help: 'Unbundled REC price' },
-  { key: 'recEscalation', label: 'REC price escalation', format: 'pct', kind: 'input', help: 'Annual growth in REC prices' },
-  { key: 'discountRate', label: 'Discount rate', format: 'pct', kind: 'input', help: 'Rate used to discount future costs' },
-  { key: 'accountingReviewed', label: 'Derivative accounting reviewed', format: 'bool', kind: 'input', help: 'ASC 815 / IFRS 9 treatment confirmed' },
-  { key: 'creditSupportReviewed', label: 'Credit support reviewed', format: 'bool', kind: 'input', help: 'Collateral or guarantee requirements known' },
-  { key: 'negativePriceTermsReviewed', label: 'Negative-price terms reviewed', format: 'bool', kind: 'input', help: 'Floor or curtailment clause checked' },
-  { key: 'marketBoundaryConfirmed', label: 'REC market boundary confirmed', format: 'bool', kind: 'input', help: 'RECs come from the same market as the load' },
-  { key: 'scope2RevisionConsidered', label: 'Scope 2 revision considered', format: 'bool', kind: 'input', help: 'GHG Protocol Scope 2 proposals reviewed' },
+  { key: 'technology', label: 'Technology', format: 'text', kind: 'input', help: 'solar or wind', options: ['solar', 'wind'], core: true, source: 'Term sheet' },
+  { key: 'market', label: 'Market', format: 'text', kind: 'input', help: 'ISO/RTO the project sits in', options: ['ERCOT', 'PJM', 'MISO', 'SPP', 'CAISO', 'NYISO', 'ISO-NE', 'Other'], core: true, source: 'Term sheet (project location and settlement hub)' },
+  { key: 'capacityMW', label: 'Project size', format: 'mw', kind: 'input', help: 'Contracted capacity, MW AC', range: [0.1, 5000], core: true, source: 'Term sheet: contracted share, not the whole project' },
+  { key: 'capacityFactor', label: 'Capacity factor', format: 'pct', kind: 'input', help: 'Average output as a share of nameplate', range: [0.05, 0.7], core: true, source: 'Independent energy yield assessment (P50); developer estimates run high' },
+  { key: 'degradation', label: 'Output degradation', format: 'pct', kind: 'input', help: 'Annual loss of output', range: [0, 0.05], source: 'Energy yield assessment or module warranty' },
+  { key: 'termYears', label: 'Contract term', format: 'years', kind: 'input', help: 'VPPA length in years', range: [1, 35], core: true, source: 'Term sheet' },
+  { key: 'strikePrice', label: 'Strike price', format: 'perMWh', kind: 'input', help: 'Fixed VPPA price, year 1', range: [1, 300], core: true, source: 'Developer’s firm offer, dated; compare with the LevelTen P25 index' },
+  { key: 'strikeEscalation', label: 'Strike escalator', format: 'pct', kind: 'input', help: 'Annual increase in the strike price', range: [-0.05, 0.1], source: 'Term sheet' },
+  { key: 'settlementPoint', label: 'Settlement point', format: 'text', kind: 'input', help: 'hub or node', options: ['hub', 'node'], source: 'Term sheet' },
+  { key: 'basis', label: 'Basis (node minus hub)', format: 'perMWh', kind: 'input', help: 'Applies only to node settlement', range: [-100, 100], source: 'Node vs. hub price history from ISO data, weighted by the project’s output' },
+  { key: 'transactionCost', label: 'Transaction costs', format: 'usd', kind: 'input', help: 'One-time legal, advisory, and procurement costs', range: [0, 100e6], source: 'Quotes from counsel and the procurement advisor' },
+  { key: 'hubPrice', label: 'Hub price, year 1', format: 'perMWh', kind: 'input', help: 'Around-the-clock wholesale price', range: [1, 500], core: true, source: 'Dated hub forward curve from a broker or the ISO; stale curves are common' },
+  { key: 'wholesaleEscalation', label: 'Wholesale price escalation', format: 'pct', kind: 'input', help: 'Annual growth in wholesale prices', range: [-0.05, 0.25], core: true, source: 'Advisor’s long-run fundamentals forecast; cross-check with EIA’s Annual Energy Outlook. A single year’s inflation is not a forecast' },
+  { key: 'captureRate', label: 'Capture rate', format: 'pct', kind: 'input', help: "Project's generation-weighted price as a share of the around-the-clock price", range: [-1, 1.5], source: 'Shape or capture study for the project’s location' },
+  { key: 'annualLoadMWh', label: 'Annual load', format: 'mwh', kind: 'input', help: 'Electricity use to be matched with RECs', range: [1, 1e9], core: true, source: 'Utility bills or the energy management system, for the sites the claim covers' },
+  { key: 'recPrice', label: 'REC price, year 1', format: 'perMWh', kind: 'input', help: 'Unbundled REC price', range: [0, 100], core: true, source: 'Broker quote for the exact product and vintage (national voluntary vs. state compliance)' },
+  { key: 'recEscalation', label: 'REC price escalation', format: 'pct', kind: 'input', help: 'Annual growth in REC prices', range: [-0.2, 0.5], source: 'Broker view; voluntary REC prices have no steady trend' },
+  { key: 'discountRate', label: 'Discount rate', format: 'pct', kind: 'input', help: 'Rate used to discount future costs', range: [0, 0.3], core: true, source: 'Treasury or finance (the company’s cost of capital)' },
+  { key: 'accountingReviewed', label: 'Derivative accounting reviewed', format: 'bool', kind: 'input', help: 'ASC 815 / IFRS 9 treatment confirmed', source: 'Controller’s group' },
+  { key: 'creditSupportReviewed', label: 'Credit support reviewed', format: 'bool', kind: 'input', help: 'Collateral or guarantee requirements known', source: 'Treasury and the term sheet' },
+  { key: 'negativePriceTermsReviewed', label: 'Negative-price terms reviewed', format: 'bool', kind: 'input', help: 'Floor or curtailment clause checked', source: 'The contract, reviewed by counsel' },
+  { key: 'marketBoundaryConfirmed', label: 'REC market boundary confirmed', format: 'bool', kind: 'input', help: 'RECs come from the same market as the load', source: 'REC tracking system records (e.g. M-RETS, PJM-GATS, ERCOT)' },
+  { key: 'scope2RevisionConsidered', label: 'Scope 2 revision considered', format: 'bool', kind: 'input', help: 'GHG Protocol Scope 2 proposals reviewed', source: 'Sustainability reporting lead' },
 
   { key: 'year1GenerationMWh', label: 'Year-1 generation', format: 'mwh', kind: 'derived', help: 'Size x 8,760 h x capacity factor' },
   { key: 'coverageRatio', label: 'Load covered by the project', format: 'pct', kind: 'derived', help: 'Year-1 generation / annual load' },
@@ -100,4 +106,37 @@ export function deriveFacts(inputs: Inputs, result: ModelResult = runModel(input
     lateValueShare: positive > 0 ? positiveLate / positive : 0,
     firstPositiveYear,
   };
+}
+
+export interface InputProblem {
+  key: string;
+  value: number;
+  range: [number, number];
+  message: string;
+}
+
+/**
+ * Values that cannot be right, as opposed to values that are merely
+ * aggressive (those are the checks' job). Usually a unit mix-up, such as a
+ * capacity factor of 24 meant as 24%.
+ */
+export function validateInputs(inputs: Inputs): InputProblem[] {
+  const problems: InputProblem[] = [];
+  for (const f of FACTS) {
+    if (f.kind !== 'input' || !f.range) continue;
+    const value = (inputs as unknown as Record<string, unknown>)[f.key];
+    if (typeof value !== 'number') continue;
+    const [lo, hi] = f.range;
+    if (!Number.isFinite(value) || value < lo || value > hi) {
+      problems.push({ key: f.key, value, range: f.range, message: `${f.label} must be between ${fmtRange(f.format, lo)} and ${fmtRange(f.format, hi)}.` });
+    }
+  }
+  return problems;
+}
+
+function fmtRange(format: FactFormat, v: number): string {
+  if (format === 'pct') return `${Math.round(v * 1000) / 10}%`;
+  if (format === 'perMWh') return `$${v}/MWh`;
+  if (format === 'usd') return `$${v.toLocaleString('en-US')}`;
+  return v.toLocaleString('en-US');
 }

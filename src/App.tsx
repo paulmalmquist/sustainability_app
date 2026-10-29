@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { advise } from './engine/advice.ts';
 import { deriveFacts, FACT_BY_KEY } from './engine/facts.ts';
-import { completeInputs } from './engine/inputs.ts';
+import { completeInputs, type Rejected } from './engine/inputs.ts';
 import { buildMemo } from './engine/memo.ts';
 import { breakEvenEscalation, breakEvenStrike, runModel } from './engine/model.ts';
 import { fingerprint, openFindings, reviewStatus, reviewedInputs, type ReviewStatus } from './engine/review.ts';
@@ -80,6 +80,7 @@ function blankRule(id: string, by: string): Rule {
 export default function App() {
   const [inputs, setInputsRaw] = useState<Inputs>(loadInputs);
   const [assumed, setAssumed] = useState<string[]>(() => load('assumed', []));
+  const [rejected, setRejected] = useState<Rejected[]>(() => load('rejected', []));
   const [playbook, setPlaybook] = useState<PlaybookState>(() => ({ ...EMPTY_PLAYBOOK, ...load('playbook', EMPTY_PLAYBOOK) }));
   const [review, setReview] = useState<ReviewState>(() => load('review', EMPTY_REVIEW));
   const [reviewer, setReviewer] = useState<string>(() => load('reviewer', ''));
@@ -88,6 +89,7 @@ export default function App() {
 
   useEffect(() => save('inputs', inputs), [inputs]);
   useEffect(() => save('assumed', assumed), [assumed]);
+  useEffect(() => save('rejected', rejected), [rejected]);
   useEffect(() => save('playbook', playbook), [playbook]);
   useEffect(() => save('review', review), [review]);
   useEffect(() => save('reviewer', reviewer), [reviewer]);
@@ -111,7 +113,10 @@ export default function App() {
   // Editing a value by hand means it is no longer an assumption we filled in.
   const setInputs = (next: Inputs) => {
     const changed = Object.keys(next).filter((k) => next[k as keyof Inputs] !== inputs[k as keyof Inputs]);
-    if (changed.length) setAssumed((a) => a.filter((k) => !changed.includes(k)));
+    if (changed.length) {
+      setAssumed((a) => a.filter((k) => !changed.includes(k)));
+      setRejected((r) => r.filter((x) => !changed.includes(x.key)));
+    }
     setInputsRaw(next);
   };
 
@@ -163,11 +168,12 @@ export default function App() {
   const decide = (ruleId: string, decision: Decision) =>
     setReview((r) => ({ ...r, decisions: { ...r.decisions, [ruleId]: decision } }));
 
-  const advice = useMemo(() => advise(inputs, rules, { assumed, review }), [inputs, rules, assumed, review]);
+  const advice = useMemo(() => advise(inputs, rules, { assumed, rejected, review }), [inputs, rules, assumed, rejected, review]);
 
   const loadExample = (which: 'example' | 'benchmark') => {
     setInputsRaw(which === 'example' ? EXAMPLE_SCENARIO : BENCHMARK_SCENARIO);
     setAssumed([]);
+    setRejected([]);
     setReview(EMPTY_REVIEW);
   };
 
@@ -175,6 +181,7 @@ export default function App() {
     const completed = completeInputs(values);
     setInputsRaw(completed.inputs);
     setAssumed(completed.assumed);
+    setRejected(completed.rejected);
     setReview(EMPTY_REVIEW);
   };
 
@@ -302,7 +309,13 @@ export default function App() {
             </ol>
 
             <div className="desk">
-              <AssumptionsForm inputs={inputs} onChange={setInputs} flags={flags} onLoadExample={loadExample} />
+              <AssumptionsForm
+                inputs={inputs}
+                onChange={setInputs}
+                flags={flags}
+                errors={Object.fromEntries(advice.problems.map((p) => [p.key, p.message]))}
+                onLoadExample={loadExample}
+              />
               <div className="col">
                 <Preflight inputs={inputs} findings={findings} review={review} checksRun={rules.length} onDecide={decide} />
                 <ResultCard

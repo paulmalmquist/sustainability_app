@@ -20,6 +20,13 @@ For the 7.5% example, the advice reads:
 
 The **Detailed review** tab is still there for anyone who wants to see each flag, decide it by hand, and sign off. Decisions made there carry into the advice.
 
+### How the advice treats inputs
+
+- **Every input has a valid range.** A value outside it, such as a capacity factor of 2600, is treated as an error (usually a unit mix-up), not as an aggressive assumption. It is replaced and reported, and the advice's confidence drops until it is fixed.
+- **Every input has a named source.** For each value that was filled in or rejected, the advice says where a reliable number comes from: an independent energy yield assessment for capacity factor, a dated forward curve for the hub price, a broker quote for the exact REC product, and so on.
+- **A minimal checklist.** Eleven inputs are needed for useful advice (marked in the skill's input table). If any of them was filled in, confidence is capped at medium.
+- **Clear priority between checks.** When two checks suggest different values for the same input, the more serious one wins (critical over warning, then the larger effect), and the other is noted.
+
 ## Why it exists
 
 The app grew out of one real review. A model compared a virtual PPA with buying RECs and assumed wholesale power prices would rise **7.5% a year** for the whole contract. Typical long-run escalation is 2.5–3%, roughly inflation. At 7.5% the VPPA looked like the better deal. AI flagged the number and a person took the argument back to whoever made the assumption.

@@ -3,9 +3,11 @@ import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { advise, adviceSummary, renderAdvice } from '../src/engine/advice.ts';
+import { advise, adviceSummary, confidenceText, firmUpList, renderAdvice } from '../src/engine/advice.ts';
+import { FACTS, validateInputs } from '../src/engine/facts.ts';
+import { reviewedInputs } from '../src/engine/review.ts';
 import { completeInputs, readAssumptions } from '../src/engine/inputs.ts';
-import { activeRules, parsePlaybook, serializePlaybook } from '../src/engine/rules.ts';
+import { activeRules, applyBenchmarks, parsePlaybook, runPreflight, serializePlaybook } from '../src/engine/rules.ts';
 import { BENCHMARK_SCENARIO, EXAMPLE_SCENARIO } from '../src/engine/scenarios.ts';
 import type { Rule } from '../src/engine/types.ts';
 import { skillFiles } from '../src/skillPackage.ts';
@@ -100,7 +102,7 @@ describe('reading inputs', () => {
         'Notes\tsee tab 3',
       ].join('\n'),
     );
-    expect(values).toMatchObject({
+    expect(completeInputs(values).inputs).toMatchObject({
       scenarioName: 'Sunfield Solar',
       market: 'ERCOT',
       capacityMW: 120,
@@ -113,6 +115,7 @@ describe('reading inputs', () => {
       transactionCost: 350000,
       annualLoadMWh: 250000,
     });
+    expect(lines.find((l) => l.key === 'capacityFactor')?.value).toBe(0.26);
     expect(lines.filter((l) => !l.key).map((l) => l.text)).toEqual(['Notes\tsee tab 3']);
   });
 });
@@ -183,6 +186,72 @@ describe('bundled calculator in the skill', () => {
     expect(out.teamChecks).toBe(1);
     expect(out.questions.map((q: { id: string }) => q.id)).toContain('TEAM-01');
     expect(out.markdown).toContain('High strike. _(Strike above $60)_');
-    expect(out.markdown).toContain('Not in the inputs, so assumed');
+    expect(out.markdown).toContain('Filled in for you');
+  });
+});
+
+describe('input ranges, sources, and rule priority', () => {
+  it('flags values that cannot be right and drops confidence to low', () => {
+    const bad = { ...EXAMPLE_SCENARIO, capacityFactor: 2.4 };
+    expect(validateInputs(bad).map((p) => p.key)).toEqual(['capacityFactor']);
+    const a = advise(bad, rules);
+    expect(a.confidence).toBe('low');
+    expect(renderAdvice(a)).toContain('## Fix these inputs first');
+    expect(validateInputs(EXAMPLE_SCENARIO)).toEqual([]);
+  });
+
+  it('rejects impossible values from a source and says where to get a real one', () => {
+    const c = completeInputs({ capacityFactor: 2400, strikePrice: -5, technology: 'solar', market: 'PJM' });
+    expect(c.rejected.map((r) => r.key)).toEqual(['capacityFactor', 'strikePrice']);
+    expect(c.inputs.capacityFactor).toBe(0.24);
+    expect(c.assumed).toEqual(expect.arrayContaining(['capacityFactor', 'strikePrice']));
+    expect(c.assumed).not.toContain('technology');
+    expect(c.assumed).not.toContain('market');
+    const advice = advise(c.inputs, rules, { assumed: c.assumed, rejected: c.rejected });
+    expect(advice.confidence).not.toBe('high');
+    expect(confidenceText(advice)).toContain('Capacity factor');
+    const lines = firmUpList(advice);
+    expect(lines[0]).toContain('Capacity factor: the source gave 2400');
+    expect(lines[0]).toContain('Get it from: Independent energy yield assessment');
+    expect(lines.some((l) => l.startsWith('Discount rate: 8%. Get it from: Treasury'))).toBe(true);
+  });
+
+  it('converts pasted percentages exactly once, so impossible ones are still caught', () => {
+    for (const [text, expected] of [['Capacity factor\t24', 0.24], ['Capacity factor\t24%', 0.24], ['Capacity factor\t0.24', 0.24]] as const) {
+      expect(completeInputs(readAssumptions(text).values).inputs.capacityFactor).toBe(expected);
+    }
+    expect(completeInputs(readAssumptions('Capacity factor\t2600').values).rejected.map((r) => r.key)).toEqual(['capacityFactor']);
+  });
+
+  it('reports technology and market as assumed when the source leaves them out', () => {
+    expect(completeInputs({ strikePrice: 60 }).assumed).toEqual(expect.arrayContaining(['technology', 'market']));
+  });
+
+  it('lets the more serious check win when two benchmark the same input', () => {
+    const softer: Rule = {
+      id: 'TEAM-02',
+      title: 'Escalation above 4%',
+      category: 'Market prices',
+      severity: 'warning',
+      when: [{ fact: 'wholesaleEscalation', op: '>', value: 0.04 }],
+      message: 'x',
+      why: 'x',
+      benchmark: { input: 'wholesaleEscalation', value: 0.035, label: '3.5%' },
+      origin: 'team',
+    };
+    const both = activeRules({ custom: [softer], edits: {}, disabled: [] });
+    const a = advise(EXAMPLE_SCENARIO, both);
+    expect(a.correctedInputs.wholesaleEscalation).toBe(0.0275);
+    expect(a.corrections.map((f) => f.rule.id)).toContain('MKT-ESC-HIGH');
+    expect(a.superseded.map((f) => f.rule.id)).toEqual(['TEAM-02']);
+    const findings = runPreflight(EXAMPLE_SCENARIO, both);
+    expect(applyBenchmarks(EXAMPLE_SCENARIO, findings).wholesaleEscalation).toBe(0.0275);
+    const review = { decisions: { 'MKT-ESC-HIGH': { disposition: 'use-benchmark' as const, note: '' }, 'TEAM-02': { disposition: 'use-benchmark' as const, note: '' } } };
+    expect(reviewedInputs(EXAMPLE_SCENARIO, findings, review).wholesaleEscalation).toBe(0.0275);
+  });
+
+  it('gives every needed input a valid range and a source', () => {
+    for (const f of FACTS.filter((x) => x.kind === 'input')) expect(f.source, f.key).toBeTruthy();
+    for (const f of FACTS.filter((x) => x.core && x.format !== 'text')) expect(f.range, f.key).toBeDefined();
   });
 });

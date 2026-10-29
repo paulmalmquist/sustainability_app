@@ -98,11 +98,18 @@ export function runPreflight(inputs: Inputs, rules: Rule[], base: ModelResult = 
   );
 }
 
-/** Applies a set of benchmarks to the inputs. Later entries win on the same input. */
+/**
+ * Applies a set of benchmarks to the inputs. When two target the same input,
+ * the first wins; runPreflight orders findings most serious first.
+ */
 export function applyBenchmarks(inputs: Inputs, findings: Finding[]): Inputs {
+  const done = new Set<string>();
   let next = inputs;
   for (const f of findings) {
-    if (f.rule.benchmark) next = withInput(next, f.rule.benchmark.input, f.rule.benchmark.value);
+    const b = f.rule.benchmark;
+    if (!b || done.has(b.input)) continue;
+    done.add(b.input);
+    next = withInput(next, b.input, b.value);
   }
   return next;
 }

@@ -21,33 +21,37 @@ Benchmarks are defaults with sources and dates. If you have newer market data, s
 
 ## Input keys
 
-| Key | Meaning | Unit | If missing |
-|---|---|---|---|
-| `technology` | Technology: solar or wind | solar, wind | solar |
-| `market` | Market: ISO/RTO the project sits in | ERCOT, PJM, MISO, SPP, CAISO, NYISO, ISO-NE, Other | Other |
-| `capacityMW` | Project size: Contracted capacity, MW AC | MW (AC) | Benchmark, reported as assumed |
-| `capacityFactor` | Capacity factor: Average output as a share of nameplate | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
-| `degradation` | Output degradation: Annual loss of output | fraction (0.075 = 7.5%) | Treated as not modeled (0), so the check fires |
-| `termYears` | Contract term: VPPA length in years | years | Benchmark, reported as assumed |
-| `strikePrice` | Strike price: Fixed VPPA price, year 1 | $/MWh | Benchmark, reported as assumed |
-| `strikeEscalation` | Strike escalator: Annual increase in the strike price | fraction (0.075 = 7.5%) | 0 (flat strike) |
-| `settlementPoint` | Settlement point: hub or node | hub, node | hub |
-| `basis` | Basis (node minus hub): Applies only to node settlement | $/MWh | 0 |
-| `transactionCost` | Transaction costs: One-time legal, advisory, and procurement costs | $ | Treated as not modeled ($0), so the check fires |
-| `hubPrice` | Hub price, year 1: Around-the-clock wholesale price | $/MWh | Benchmark, reported as assumed |
-| `wholesaleEscalation` | Wholesale price escalation: Annual growth in wholesale prices | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
-| `captureRate` | Capture rate: Project's generation-weighted price as a share of the around-the-clock price | fraction (0.075 = 7.5%) | Treated as not modeled (100%), so the check fires |
-| `annualLoadMWh` | Annual load: Electricity use to be matched with RECs | MWh per year | Year-1 generation (project sized to load), reported as assumed |
-| `recPrice` | REC price, year 1: Unbundled REC price | $/MWh | Benchmark, reported as assumed |
-| `recEscalation` | REC price escalation: Annual growth in REC prices | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
-| `discountRate` | Discount rate: Rate used to discount future costs | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
-| `accountingReviewed` | Derivative accounting reviewed: ASC 815 / IFRS 9 treatment confirmed | true / false | false (unknown), so it becomes a question |
-| `creditSupportReviewed` | Credit support reviewed: Collateral or guarantee requirements known | true / false | false (unknown), so it becomes a question |
-| `negativePriceTermsReviewed` | Negative-price terms reviewed: Floor or curtailment clause checked | true / false | false (unknown), so it becomes a question |
-| `marketBoundaryConfirmed` | REC market boundary confirmed: RECs come from the same market as the load | true / false | false (unknown), so it becomes a question |
-| `scope2RevisionConsidered` | Scope 2 revision considered: GHG Protocol Scope 2 proposals reviewed | true / false | false (unknown), so it becomes a question |
-| `annualGenerationMWh` | Annual generation, in place of size or capacity factor | MWh per year | Derived from size × capacity factor |
-| `scenarioName`, `assumptionOwner` | Name of the deal; who supplied the assumptions | text | Generic name; questions addressed generically |
+Keys marked **needed** are the minimum for useful advice; anything missing is filled with a benchmark and listed so the user can firm it up. A value outside its valid range is rejected as an error (usually a unit mix-up) and replaced the same way. When you extract a number, note where it came from; the "Best source" column says what a reliable one looks like.
+
+| Key | Meaning | Unit | Needed | Valid range | Best source | If missing |
+|---|---|---|---|---|---|---|
+| `technology` | Technology: solar or wind | solar, wind | needed |  | Term sheet | solar |
+| `market` | Market: ISO/RTO the project sits in | ERCOT, PJM, MISO, SPP, CAISO, NYISO, ISO-NE, Other | needed |  | Term sheet (project location and settlement hub) | Other |
+| `capacityMW` | Project size: Contracted capacity, MW AC | MW (AC) | needed | 0.1 MW to 5,000 MW | Term sheet: contracted share, not the whole project | Benchmark, reported as assumed |
+| `capacityFactor` | Capacity factor: Average output as a share of nameplate | fraction (0.075 = 7.5%) | needed | 5% to 70% | Independent energy yield assessment (P50); developer estimates run high | Benchmark, reported as assumed |
+| `degradation` | Output degradation: Annual loss of output | fraction (0.075 = 7.5%) |  | 0% to 5% | Energy yield assessment or module warranty | Treated as not modeled (0), so the check fires |
+| `termYears` | Contract term: VPPA length in years | years | needed | 1 years to 35 years | Term sheet | Benchmark, reported as assumed |
+| `strikePrice` | Strike price: Fixed VPPA price, year 1 | $/MWh | needed | $1.00/MWh to $300.00/MWh | Developer’s firm offer, dated; compare with the LevelTen P25 index | Benchmark, reported as assumed |
+| `strikeEscalation` | Strike escalator: Annual increase in the strike price | fraction (0.075 = 7.5%) |  | -5% to 10% | Term sheet | 0 (flat strike) |
+| `settlementPoint` | Settlement point: hub or node | hub, node |  |  | Term sheet | hub |
+| `basis` | Basis (node minus hub): Applies only to node settlement | $/MWh |  | −$100.00/MWh to $100.00/MWh | Node vs. hub price history from ISO data, weighted by the project’s output | 0 |
+| `transactionCost` | Transaction costs: One-time legal, advisory, and procurement costs | $ |  | $0 to $100M | Quotes from counsel and the procurement advisor | Treated as not modeled ($0), so the check fires |
+| `hubPrice` | Hub price, year 1: Around-the-clock wholesale price | $/MWh | needed | $1.00/MWh to $500.00/MWh | Dated hub forward curve from a broker or the ISO; stale curves are common | Benchmark, reported as assumed |
+| `wholesaleEscalation` | Wholesale price escalation: Annual growth in wholesale prices | fraction (0.075 = 7.5%) | needed | -5% to 25% | Advisor’s long-run fundamentals forecast; cross-check with EIA’s Annual Energy Outlook. A single year’s inflation is not a forecast | Benchmark, reported as assumed |
+| `captureRate` | Capture rate: Project's generation-weighted price as a share of the around-the-clock price | fraction (0.075 = 7.5%) |  | -100% to 150% | Shape or capture study for the project’s location | Treated as not modeled (100%), so the check fires |
+| `annualLoadMWh` | Annual load: Electricity use to be matched with RECs | MWh per year | needed | 1 MWh to 1,000,000,000 MWh | Utility bills or the energy management system, for the sites the claim covers | Year-1 generation (project sized to load), reported as assumed |
+| `recPrice` | REC price, year 1: Unbundled REC price | $/MWh | needed | $0.00/MWh to $100.00/MWh | Broker quote for the exact product and vintage (national voluntary vs. state compliance) | Benchmark, reported as assumed |
+| `recEscalation` | REC price escalation: Annual growth in REC prices | fraction (0.075 = 7.5%) |  | -20% to 50% | Broker view; voluntary REC prices have no steady trend | Benchmark, reported as assumed |
+| `discountRate` | Discount rate: Rate used to discount future costs | fraction (0.075 = 7.5%) | needed | 0% to 30% | Treasury or finance (the company’s cost of capital) | Benchmark, reported as assumed |
+| `accountingReviewed` | Derivative accounting reviewed: ASC 815 / IFRS 9 treatment confirmed | true / false |  |  | Controller’s group | false (unknown), so it becomes a question |
+| `creditSupportReviewed` | Credit support reviewed: Collateral or guarantee requirements known | true / false |  |  | Treasury and the term sheet | false (unknown), so it becomes a question |
+| `negativePriceTermsReviewed` | Negative-price terms reviewed: Floor or curtailment clause checked | true / false |  |  | The contract, reviewed by counsel | false (unknown), so it becomes a question |
+| `marketBoundaryConfirmed` | REC market boundary confirmed: RECs come from the same market as the load | true / false |  |  | REC tracking system records (e.g. M-RETS, PJM-GATS, ERCOT) | false (unknown), so it becomes a question |
+| `scope2RevisionConsidered` | Scope 2 revision considered: GHG Protocol Scope 2 proposals reviewed | true / false |  |  | Sustainability reporting lead | false (unknown), so it becomes a question |
+| `annualGenerationMWh` | Annual generation, in place of size or capacity factor | MWh per year | | | Energy yield assessment (P50) | Derived from size × capacity factor |
+| `scenarioName`, `assumptionOwner` | Name of the deal; who supplied the assumptions | text | | | | Generic name; questions addressed generically |
+
+When two checks suggest different values for the same input, the more serious check wins (critical over warning, then the larger effect on the result). The calculator does this for you.
 
 See `example-inputs.json` for a complete example.
 
