@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
-import { BUILT_IN_RULES } from './engine/builtinRules.ts';
+import { advise } from './engine/advice.ts';
 import { deriveFacts, FACT_BY_KEY } from './engine/facts.ts';
+import { completeInputs } from './engine/inputs.ts';
 import { buildMemo } from './engine/memo.ts';
 import { breakEvenEscalation, breakEvenStrike, runModel } from './engine/model.ts';
 import { fingerprint, openFindings, reviewStatus, reviewedInputs, type ReviewStatus } from './engine/review.ts';
-import { activeRules, effectiveRules, newRuleId, runPreflight, SEVERITY_RANK } from './engine/rules.ts';
+import { activeRules, effectiveRules, newRuleId, parsePlaybook, runPreflight, SEVERITY_RANK } from './engine/rules.ts';
 import { EXAMPLE_SCENARIO, BENCHMARK_SCENARIO } from './engine/scenarios.ts';
 import { buildSecondLookPrompt, type Suggestion } from './engine/secondLook.ts';
 import { sensitivity } from './engine/sensitivity.ts';
 import type { Category, Decision, Inputs, PlaybookState, ReviewState, Rule, Severity } from './engine/types.ts';
 import { load, save } from './storage.ts';
+import { AdviceView } from './components/AdviceView.tsx';
 import { AnnualTable } from './components/AnnualTable.tsx';
 import { AssumptionsForm } from './components/AssumptionsForm.tsx';
 import { HowItWorks } from './components/HowItWorks.tsx';
@@ -22,9 +24,10 @@ import { SettlementChart } from './components/SettlementChart.tsx';
 import { SignOff } from './components/SignOff.tsx';
 import { Tornado } from './components/Tornado.tsx';
 
-type View = 'analysis' | 'playbook' | 'how';
+type View = 'advice' | 'analysis' | 'playbook' | 'how';
 const VIEWS: { id: View; label: string }[] = [
-  { id: 'analysis', label: 'Analysis' },
+  { id: 'advice', label: 'Advice' },
+  { id: 'analysis', label: 'Detailed review' },
   { id: 'playbook', label: 'Playbook' },
   { id: 'how', label: 'How it works' },
 ];
@@ -39,7 +42,7 @@ function loadInputs(): Inputs {
 
 function viewFromHash(): View {
   const h = typeof location === 'undefined' ? '' : location.hash.slice(1);
-  return VIEWS.some((v) => v.id === h) ? (h as View) : 'analysis';
+  return VIEWS.some((v) => v.id === h) ? (h as View) : 'advice';
 }
 
 const STATUS_TEXT: Record<ReviewStatus, (open: number) => string> = {
@@ -75,7 +78,8 @@ function blankRule(id: string, by: string): Rule {
 }
 
 export default function App() {
-  const [inputs, setInputs] = useState<Inputs>(loadInputs);
+  const [inputs, setInputsRaw] = useState<Inputs>(loadInputs);
+  const [assumed, setAssumed] = useState<string[]>(() => load('assumed', []));
   const [playbook, setPlaybook] = useState<PlaybookState>(() => ({ ...EMPTY_PLAYBOOK, ...load('playbook', EMPTY_PLAYBOOK) }));
   const [review, setReview] = useState<ReviewState>(() => load('review', EMPTY_REVIEW));
   const [reviewer, setReviewer] = useState<string>(() => load('reviewer', ''));
@@ -83,6 +87,7 @@ export default function App() {
   const [editor, setEditor] = useState<{ rule: Rule; isNew: boolean } | null>(null);
 
   useEffect(() => save('inputs', inputs), [inputs]);
+  useEffect(() => save('assumed', assumed), [assumed]);
   useEffect(() => save('playbook', playbook), [playbook]);
   useEffect(() => save('review', review), [review]);
   useEffect(() => save('reviewer', reviewer), [reviewer]);
@@ -101,6 +106,13 @@ export default function App() {
       // Some hosts don't allow history changes; the view still switches.
     }
     window.scrollTo({ top: 0 });
+  };
+
+  // Editing a value by hand means it is no longer an assumption we filled in.
+  const setInputs = (next: Inputs) => {
+    const changed = Object.keys(next).filter((k) => next[k as keyof Inputs] !== inputs[k as keyof Inputs]);
+    if (changed.length) setAssumed((a) => a.filter((k) => !changed.includes(k)));
+    setInputsRaw(next);
   };
 
   const rules = useMemo(() => activeRules(playbook), [playbook]);
@@ -151,8 +163,18 @@ export default function App() {
   const decide = (ruleId: string, decision: Decision) =>
     setReview((r) => ({ ...r, decisions: { ...r.decisions, [ruleId]: decision } }));
 
+  const advice = useMemo(() => advise(inputs, rules, { assumed, review }), [inputs, rules, assumed, review]);
+
   const loadExample = (which: 'example' | 'benchmark') => {
-    setInputs(which === 'example' ? EXAMPLE_SCENARIO : BENCHMARK_SCENARIO);
+    setInputsRaw(which === 'example' ? EXAMPLE_SCENARIO : BENCHMARK_SCENARIO);
+    setAssumed([]);
+    setReview(EMPTY_REVIEW);
+  };
+
+  const readModel = (values: Record<string, unknown>) => {
+    const completed = completeInputs(values);
+    setInputsRaw(completed.inputs);
+    setAssumed(completed.assumed);
     setReview(EMPTY_REVIEW);
   };
 
@@ -165,20 +187,24 @@ export default function App() {
     setEditor(null);
   };
 
-  const importRules = (list: unknown[]): string => {
-    const valid = list.filter(
-      (r): r is Rule =>
-        !!r && typeof r === 'object' && typeof (r as Rule).id === 'string' && typeof (r as Rule).title === 'string' && Array.isArray((r as Rule).when),
-    );
-    if (!valid.length) return 'No checks found in that file.';
-    const builtInIds = new Set(BUILT_IN_RULES.map((r) => r.id));
-    const incoming = valid.filter((r) => !builtInIds.has(r.id)).map((r) => ({ ...r, origin: 'team' as const }));
+  const importRules = (data: unknown): string => {
+    let incoming: PlaybookState;
+    try {
+      incoming = parsePlaybook(data);
+    } catch {
+      return 'No checks found in that file.';
+    }
     setPlaybook((p) => {
       const byId = new Map(p.custom.map((r) => [r.id, r]));
-      for (const r of incoming) byId.set(r.id, r);
-      return { ...p, custom: [...byId.values()] };
+      for (const r of incoming.custom) byId.set(r.id, r);
+      return {
+        custom: [...byId.values()],
+        edits: { ...p.edits, ...incoming.edits },
+        disabled: [...new Set([...p.disabled, ...incoming.disabled])],
+      };
     });
-    return `Imported ${incoming.length} ${incoming.length === 1 ? 'check' : 'checks'}.`;
+    const n = incoming.custom.length + Object.keys(incoming.edits).length;
+    return `Imported ${n} ${n === 1 ? 'check' : 'checks'}${incoming.disabled.length ? ` and ${incoming.disabled.length} turned off` : ''}.`;
   };
 
   const startNewRule = (seed?: Suggestion) => {
@@ -231,14 +257,18 @@ export default function App() {
               </button>
             ))}
           </nav>
-          <span className="status-pill" data-status={status} title="Review status of the current analysis">
-            {STATUS_TEXT[status](openCount)}
-          </span>
+          {view === 'analysis' ? (
+            <span className="status-pill" data-status={status} title="Review status of the current analysis">
+              {STATUS_TEXT[status](openCount)}
+            </span>
+          ) : null}
         </div>
       </header>
 
       <main className="page gutter">
-        {view === 'analysis' ? (
+        {view === 'advice' ? (
+          <AdviceView advice={advice} onRead={readModel} onExample={() => loadExample('example')} onOpenReview={() => go('analysis')} />
+        ) : view === 'analysis' ? (
           <>
             <ol className="loop" aria-label="How a result gets signed" style={{ listStyle: 'none', margin: 0, padding: 0 }}>
               <li className="loop-step">

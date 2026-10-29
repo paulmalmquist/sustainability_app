@@ -1,4 +1,4 @@
-import { FACTS } from './facts.ts';
+import { FACTS, type FactFormat } from './facts.ts';
 import { describeCondition, formatFact } from './format.ts';
 import { CATEGORIES, type Rule } from './types.ts';
 
@@ -16,35 +16,51 @@ export function renderSkill(rules: Rule[], opts: { generatedOn?: string } = {}):
   out.push('---');
   out.push(`name: ${SKILL_NAME}`);
   out.push(
-    'description: Review a renewable energy procurement analysis (VPPA, PPA, or unbundled REC purchases) for unrealistic assumptions before presenting any result. Use whenever you build, summarize, or check a VPPA vs. REC comparison or a renewable PPA financial model.',
+    'description: Give a clear recommendation on a VPPA vs. unbundled REC decision from whatever the user provides (spreadsheet, PDF, deck, email, or pasted numbers). Extracts the assumptions, corrects unrealistic ones against checks written by experienced reviewers, and reports the better option, how sure it is, what would change it, and what to ask the model’s owner. Use for any VPPA, virtual PPA, renewable PPA, or REC procurement analysis.',
   );
   out.push('---');
   out.push('');
-  out.push('# VPPA vs. REC assumption review');
+  out.push('# VPPA vs. REC advisor');
   out.push('');
   out.push(
-    'A procurement model can be arithmetically right and still answer the wrong question because one assumption is off. This skill holds the checks experienced reviewers apply. Run all of them before you present a result.',
+    'A procurement model can be arithmetically right and still give the wrong answer because one assumption is off, like wholesale prices rising 7.5% a year for fifteen years. This skill holds the checks experienced reviewers apply and a small calculator that runs them. The user should get one clear piece of advice, not a list of things to work out themselves.',
   );
   out.push('');
   out.push('## Procedure');
   out.push('');
-  out.push('1. List the model’s assumptions using the fact names in the reference table at the end. Mark any you had to infer.');
-  out.push('2. Evaluate every check below. A check fires only when all of its conditions hold.');
   out.push(
-    '3. For each check that fires and has a benchmark, re-run or re-estimate the result with only that value changed. Report how far it moves the answer and whether it reverses the recommendation.',
+    '1. **Extract.** Read what the user gave you and write the assumptions to `inputs.json` using the keys in "Input keys" below. Convert units: percentages as fractions (7.5% → 0.075), prices in $/MWh, energy in MWh per year. If the source gives annual generation instead of a capacity factor, use `annualGenerationMWh`. Leave out anything the source doesn’t state; the calculator fills gaps and reports them.',
   );
   out.push(
-    '4. Present findings before the headline result, critical first, using each check’s "Report" line with `{fact}` placeholders filled in from the model. Do not lead with a recommendation while a critical finding is unresolved.',
+    '2. **Run.** From this skill’s folder: `node scripts/preflight.mjs inputs.json`. It runs every check below (plus any `team-checks.json` in this folder), replaces clearly unrealistic values with benchmarks, runs the cost model both ways, and prints the advice as Markdown. Add `--json` for structured output.',
   );
   out.push(
-    '5. Label the result a draft. A named person must decide each critical and warning finding (use the benchmark, keep the value with a written reason, or send it back to the assumption owner) and sign off.',
+    '3. **Advise.** Reply with the calculator’s advice: the recommendation and confidence first, then the assumptions it corrected and what each did to the answer, then what would change the answer, then the questions for whoever built the model. Use its numbers; don’t recompute them by hand.',
   );
-  out.push('6. For findings sent back, draft the question for the assumption owner using the check’s "Ask" line.');
   out.push(
-    '7. When the reviewer catches something no check covers, propose a new check in the same format (conditions on the facts below, severity, why, benchmark, source) so it can be added to this skill.',
+    '4. **Add your own read.** After the advice, note anything in the source that the checks don’t cover (contract clauses, counterparty, location, market specifics), labeled as your observations. If one of them should be checked every time, propose it as a new check in the format below.',
+  );
+  out.push(
+    '5. **Flag uncertain extraction.** If you had to guess a value (an unlabeled cell, an ambiguous unit), say so, re-run with the other reading, and report whether the recommendation changes.',
   );
   out.push('');
-  out.push('Benchmarks are defaults with sources and dates. Prefer newer market data when you have it, and say which you used.');
+  out.push(
+    'If Node isn’t available, apply the checks by hand: evaluate each check’s conditions, swap in the benchmark for every critical or warning finding that has one, compare the corrected cost of each option, and present the result in the same order as step 3.',
+  );
+  out.push('');
+  out.push('Benchmarks are defaults with sources and dates. If you have newer market data, say so and re-run with it.');
+  out.push('');
+  out.push('## Input keys');
+  out.push('');
+  out.push('| Key | Meaning | Unit | If missing |');
+  out.push('|---|---|---|---|');
+  for (const f of FACTS.filter((x) => x.kind === 'input')) {
+    out.push(`| \`${f.key}\` | ${f.label}: ${f.help} | ${UNIT[f.format] ?? (f.options ? f.options.join(', ') : '')} | ${MISSING[f.key] ?? 'Benchmark, reported as assumed'} |`);
+  }
+  out.push('| `annualGenerationMWh` | Annual generation, in place of size or capacity factor | MWh per year | Derived from size × capacity factor |');
+  out.push('| `scenarioName`, `assumptionOwner` | Name of the deal; who supplied the assumptions | text | Generic name; questions addressed generically |');
+  out.push('');
+  out.push('See `example-inputs.json` for a complete example.');
   out.push('');
   out.push(`## Checks (${rules.length})`);
   if (team.length) {
@@ -77,7 +93,7 @@ export function renderSkill(rules: Rule[], opts: { generatedOn?: string } = {}):
   out.push('');
   out.push('## Fact reference');
   out.push('');
-  out.push('Rates are fractions in the machine-readable form (0.075 = 7.5%); prices are $/MWh.');
+  out.push('Every value a check can test, including calculated ones. Use these names when proposing a new check. Rates are fractions (0.075 = 7.5%); prices are $/MWh.');
   out.push('');
   out.push('| Fact | Meaning | Kind |');
   out.push('|---|---|---|');
@@ -95,6 +111,33 @@ export function renderSkill(rules: Rule[], opts: { generatedOn?: string } = {}):
   out.push('');
   return out.join('\n');
 }
+
+const UNIT: Partial<Record<FactFormat, string>> = {
+  pct: 'fraction (0.075 = 7.5%)',
+  perMWh: '$/MWh',
+  usd: '$',
+  mwh: 'MWh per year',
+  mw: 'MW (AC)',
+  years: 'years',
+  bool: 'true / false',
+};
+
+const MISSING: Record<string, string> = {
+  technology: 'solar',
+  market: 'Other',
+  settlementPoint: 'hub',
+  degradation: 'Treated as not modeled (0), so the check fires',
+  captureRate: 'Treated as not modeled (100%), so the check fires',
+  transactionCost: 'Treated as not modeled ($0), so the check fires',
+  basis: '0',
+  strikeEscalation: '0 (flat strike)',
+  annualLoadMWh: 'Year-1 generation (project sized to load), reported as assumed',
+  accountingReviewed: 'false (unknown), so it becomes a question',
+  creditSupportReviewed: 'false (unknown), so it becomes a question',
+  negativePriceTermsReviewed: 'false (unknown), so it becomes a question',
+  marketBoundaryConfirmed: 'false (unknown), so it becomes a question',
+  scope2RevisionConsidered: 'false (unknown), so it becomes a question',
+};
 
 function stripForExport(r: Rule) {
   const { id, title, severity, category, when, benchmark } = r;

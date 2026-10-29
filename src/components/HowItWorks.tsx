@@ -60,6 +60,24 @@ export function HowItWorks({ checkCount }: { checkCount: number }) {
 
       <section className="panel">
         <div className="panel-head">
+          <h2>Skip the app: ask Claude</h2>
+        </div>
+        <div className="panel-body">
+          <ol style={{ margin: 0, paddingLeft: '1.2em', display: 'grid', gap: 8 }}>
+            <li>In the Playbook tab, choose <strong>Download skill (.zip)</strong>. It carries every check, including the ones your team added, and the same calculator this page uses.</li>
+            <li>Upload the zip to Claude as a skill.</li>
+            <li>Give Claude the model in whatever form you have it (spreadsheet, PDF, slide, or pasted numbers) and ask which option is better.</li>
+          </ol>
+          <p className="small">
+            Claude pulls out the assumptions, runs the checks and the calculator, and answers with the same advice as the
+            Advice tab: the recommendation, how sure it is, what it corrected, what would change the answer, and the
+            questions to send back. It then adds anything it noticed that the checks don’t cover yet.
+          </p>
+        </div>
+      </section>
+
+      <section className="panel">
+        <div className="panel-head">
           <h2>How a lesson becomes a check</h2>
         </div>
         <div className="panel-body">

@@ -1,23 +1,55 @@
 ---
 name: vppa-rec-assumption-review
-description: Review a renewable energy procurement analysis (VPPA, PPA, or unbundled REC purchases) for unrealistic assumptions before presenting any result. Use whenever you build, summarize, or check a VPPA vs. REC comparison or a renewable PPA financial model.
+description: Give a clear recommendation on a VPPA vs. unbundled REC decision from whatever the user provides (spreadsheet, PDF, deck, email, or pasted numbers). Extracts the assumptions, corrects unrealistic ones against checks written by experienced reviewers, and reports the better option, how sure it is, what would change it, and what to ask the model’s owner. Use for any VPPA, virtual PPA, renewable PPA, or REC procurement analysis.
 ---
 
-# VPPA vs. REC assumption review
+# VPPA vs. REC advisor
 
-A procurement model can be arithmetically right and still answer the wrong question because one assumption is off. This skill holds the checks experienced reviewers apply. Run all of them before you present a result.
+A procurement model can be arithmetically right and still give the wrong answer because one assumption is off, like wholesale prices rising 7.5% a year for fifteen years. This skill holds the checks experienced reviewers apply and a small calculator that runs them. The user should get one clear piece of advice, not a list of things to work out themselves.
 
 ## Procedure
 
-1. List the model’s assumptions using the fact names in the reference table at the end. Mark any you had to infer.
-2. Evaluate every check below. A check fires only when all of its conditions hold.
-3. For each check that fires and has a benchmark, re-run or re-estimate the result with only that value changed. Report how far it moves the answer and whether it reverses the recommendation.
-4. Present findings before the headline result, critical first, using each check’s "Report" line with `{fact}` placeholders filled in from the model. Do not lead with a recommendation while a critical finding is unresolved.
-5. Label the result a draft. A named person must decide each critical and warning finding (use the benchmark, keep the value with a written reason, or send it back to the assumption owner) and sign off.
-6. For findings sent back, draft the question for the assumption owner using the check’s "Ask" line.
-7. When the reviewer catches something no check covers, propose a new check in the same format (conditions on the facts below, severity, why, benchmark, source) so it can be added to this skill.
+1. **Extract.** Read what the user gave you and write the assumptions to `inputs.json` using the keys in "Input keys" below. Convert units: percentages as fractions (7.5% → 0.075), prices in $/MWh, energy in MWh per year. If the source gives annual generation instead of a capacity factor, use `annualGenerationMWh`. Leave out anything the source doesn’t state; the calculator fills gaps and reports them.
+2. **Run.** From this skill’s folder: `node scripts/preflight.mjs inputs.json`. It runs every check below (plus any `team-checks.json` in this folder), replaces clearly unrealistic values with benchmarks, runs the cost model both ways, and prints the advice as Markdown. Add `--json` for structured output.
+3. **Advise.** Reply with the calculator’s advice: the recommendation and confidence first, then the assumptions it corrected and what each did to the answer, then what would change the answer, then the questions for whoever built the model. Use its numbers; don’t recompute them by hand.
+4. **Add your own read.** After the advice, note anything in the source that the checks don’t cover (contract clauses, counterparty, location, market specifics), labeled as your observations. If one of them should be checked every time, propose it as a new check in the format below.
+5. **Flag uncertain extraction.** If you had to guess a value (an unlabeled cell, an ambiguous unit), say so, re-run with the other reading, and report whether the recommendation changes.
 
-Benchmarks are defaults with sources and dates. Prefer newer market data when you have it, and say which you used.
+If Node isn’t available, apply the checks by hand: evaluate each check’s conditions, swap in the benchmark for every critical or warning finding that has one, compare the corrected cost of each option, and present the result in the same order as step 3.
+
+Benchmarks are defaults with sources and dates. If you have newer market data, say so and re-run with it.
+
+## Input keys
+
+| Key | Meaning | Unit | If missing |
+|---|---|---|---|
+| `technology` | Technology: solar or wind | solar, wind | solar |
+| `market` | Market: ISO/RTO the project sits in | ERCOT, PJM, MISO, SPP, CAISO, NYISO, ISO-NE, Other | Other |
+| `capacityMW` | Project size: Contracted capacity, MW AC | MW (AC) | Benchmark, reported as assumed |
+| `capacityFactor` | Capacity factor: Average output as a share of nameplate | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
+| `degradation` | Output degradation: Annual loss of output | fraction (0.075 = 7.5%) | Treated as not modeled (0), so the check fires |
+| `termYears` | Contract term: VPPA length in years | years | Benchmark, reported as assumed |
+| `strikePrice` | Strike price: Fixed VPPA price, year 1 | $/MWh | Benchmark, reported as assumed |
+| `strikeEscalation` | Strike escalator: Annual increase in the strike price | fraction (0.075 = 7.5%) | 0 (flat strike) |
+| `settlementPoint` | Settlement point: hub or node | hub, node | hub |
+| `basis` | Basis (node minus hub): Applies only to node settlement | $/MWh | 0 |
+| `transactionCost` | Transaction costs: One-time legal, advisory, and procurement costs | $ | Treated as not modeled ($0), so the check fires |
+| `hubPrice` | Hub price, year 1: Around-the-clock wholesale price | $/MWh | Benchmark, reported as assumed |
+| `wholesaleEscalation` | Wholesale price escalation: Annual growth in wholesale prices | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
+| `captureRate` | Capture rate: Project's generation-weighted price as a share of the around-the-clock price | fraction (0.075 = 7.5%) | Treated as not modeled (100%), so the check fires |
+| `annualLoadMWh` | Annual load: Electricity use to be matched with RECs | MWh per year | Year-1 generation (project sized to load), reported as assumed |
+| `recPrice` | REC price, year 1: Unbundled REC price | $/MWh | Benchmark, reported as assumed |
+| `recEscalation` | REC price escalation: Annual growth in REC prices | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
+| `discountRate` | Discount rate: Rate used to discount future costs | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
+| `accountingReviewed` | Derivative accounting reviewed: ASC 815 / IFRS 9 treatment confirmed | true / false | false (unknown), so it becomes a question |
+| `creditSupportReviewed` | Credit support reviewed: Collateral or guarantee requirements known | true / false | false (unknown), so it becomes a question |
+| `negativePriceTermsReviewed` | Negative-price terms reviewed: Floor or curtailment clause checked | true / false | false (unknown), so it becomes a question |
+| `marketBoundaryConfirmed` | REC market boundary confirmed: RECs come from the same market as the load | true / false | false (unknown), so it becomes a question |
+| `scope2RevisionConsidered` | Scope 2 revision considered: GHG Protocol Scope 2 proposals reviewed | true / false | false (unknown), so it becomes a question |
+| `annualGenerationMWh` | Annual generation, in place of size or capacity factor | MWh per year | Derived from size × capacity factor |
+| `scenarioName`, `assumptionOwner` | Name of the deal; who supplied the assumptions | text | Generic name; questions addressed generically |
+
+See `example-inputs.json` for a complete example.
 
 ## Checks (27)
 
@@ -265,7 +297,7 @@ Benchmarks are defaults with sources and dates. Prefer newer market data when yo
 
 ## Fact reference
 
-Rates are fractions in the machine-readable form (0.075 = 7.5%); prices are $/MWh.
+Every value a check can test, including calculated ones. Use these names when proposing a new check. Rates are fractions (0.075 = 7.5%); prices are $/MWh.
 
 | Fact | Meaning | Kind |
 |---|---|---|

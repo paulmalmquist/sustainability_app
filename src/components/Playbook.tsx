@@ -1,9 +1,12 @@
 import { useRef, useState, type ReactNode } from 'react';
 import { BUILT_IN_RULES } from '../engine/builtinRules.ts';
 import { describeCondition } from '../engine/format.ts';
-import { effectiveRules, ruleFires } from '../engine/rules.ts';
-import { renderSkill } from '../engine/skill.ts';
+import { effectiveRules, ruleFires, serializePlaybook } from '../engine/rules.ts';
+import { renderSkill, SKILL_NAME } from '../engine/skill.ts';
 import { CATEGORIES, type Facts, type PlaybookState, type Rule } from '../engine/types.ts';
+import { copyText, saveFile } from '../runtime.ts';
+import { skillFiles } from '../skillPackage.ts';
+import { zip } from '../zip.ts';
 import { ExportButtons, SeverityChip } from './ui.tsx';
 
 interface Props {
@@ -14,7 +17,7 @@ interface Props {
   onToggle: (id: string) => void;
   onDelete: (id: string) => void;
   onReset: (id: string) => void;
-  onImport: (rules: Rule[]) => string;
+  onImport: (data: unknown) => string;
   editor: ReactNode;
 }
 
@@ -27,20 +30,27 @@ export function Playbook({ playbook, facts, onEdit, onAdd, onToggle, onDelete, o
   const fileRef = useRef<HTMLInputElement>(null);
   const [importNote, setImportNote] = useState('');
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [skillNote, setSkillNote] = useState('');
 
   const today = new Date().toISOString().slice(0, 10);
   const enabledRules = rules.filter((r) => !disabled.has(r.id));
   const skill = () => renderSkill(enabledRules, { generatedOn: today });
-  const json = () => JSON.stringify({ app: 'ppa-preflight', version: 1, exportedOn: today, rules: team }, null, 2);
+  const json = () => JSON.stringify(serializePlaybook(playbook, today), null, 2);
+
+  const downloadSkill = async () => {
+    const outcome = await saveFile(`${SKILL_NAME}.zip`, zip(skillFiles(playbook, today)));
+    if (outcome === 'saved') setSkillNote(`Saved ${SKILL_NAME}.zip`);
+    else if (outcome === 'unavailable') {
+      const copied = await copyText(skill());
+      setSkillNote(copied ? 'Downloads are off here, so SKILL.md was copied instead.' : 'Downloads are off here. Use Copy SKILL.md.');
+    }
+  };
 
   const readFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
       try {
-        const data = JSON.parse(String(reader.result));
-        const list = Array.isArray(data) ? data : data.rules;
-        if (!Array.isArray(list)) throw new Error('no rules');
-        setImportNote(onImport(list));
+        setImportNote(onImport(JSON.parse(String(reader.result))));
       } catch {
         setImportNote('That file isn’t a PPA Preflight playbook export.');
       }
@@ -86,13 +96,21 @@ export function Playbook({ playbook, facts, onEdit, onAdd, onToggle, onDelete, o
           </div>
           <div className="grid-2">
             <div className="field">
-              <span className="field-label">Claude skill (SKILL.md)</span>
-              <ExportButtons text={skill} filename="SKILL.md" copyLabel="Copy skill" />
-              <span className="field-help">Put it in a folder named vppa-rec-assumption-review and add it to Claude as a skill.</span>
+              <span className="field-label">Claude skill</span>
+              <div className="btn-row">
+                <button type="button" className="btn btn-primary" onClick={downloadSkill}>
+                  Download skill (.zip)
+                </button>
+                <ExportButtons text={skill} copyLabel="Copy SKILL.md" />
+              </div>
+              <span className="field-help" role="status">
+                {skillNote ||
+                  'Includes every active check above, your team’s additions, and the calculator. Upload the zip to Claude as a skill, then give Claude any VPPA model and ask for advice.'}
+              </span>
             </div>
             <div className="field">
               <span className="field-label">Share with colleagues</span>
-              <ExportButtons text={json} filename="ppa-preflight-checks.json" copyLabel="Copy JSON">
+              <ExportButtons text={json} filename="team-checks.json" copyLabel="Copy JSON">
                 <button type="button" className="btn" onClick={() => fileRef.current?.click()}>
                   Import JSON
                 </button>
@@ -108,7 +126,7 @@ export function Playbook({ playbook, facts, onEdit, onAdd, onToggle, onDelete, o
                   e.target.value = '';
                 }}
               />
-              <span className="field-help">{importNote || 'Exports the checks your team added. Import merges by ID.'}</span>
+              <span className="field-help">{importNote || 'Exports your added, recalibrated, and turned-off checks. Import merges by ID.'}</span>
             </div>
           </div>
         </div>

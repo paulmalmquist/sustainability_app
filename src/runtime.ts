@@ -9,7 +9,7 @@ export interface SampleFn {
 }
 
 interface Downloads {
-  save(request: { filename: string; data: string }): Promise<{ status: string }>;
+  save(request: { filename: string; data: string | Blob }): Promise<{ status: string }>;
 }
 
 function claudeUse(): Use | null {
@@ -33,19 +33,23 @@ export async function capability<T>(name: string): Promise<T | null> {
 
 export type SaveOutcome = 'saved' | 'declined' | 'unavailable';
 
-/** Offers a text file to the viewer. Returns 'unavailable' when the host blocks downloads. */
-export async function saveTextFile(filename: string, text: string): Promise<SaveOutcome> {
+/** Offers a file to the viewer. Returns 'unavailable' when the host blocks downloads. */
+export async function saveFile(filename: string, content: string | Uint8Array): Promise<SaveOutcome> {
+  const blob =
+    typeof content === 'string'
+      ? new Blob([content], { type: 'text/plain;charset=utf-8' })
+      : new Blob([content as Uint8Array<ArrayBuffer>], { type: 'application/zip' });
   if (inClaudeViewer()) {
     const downloads = await capability<Downloads>('downloads');
     if (!downloads) return 'unavailable';
     try {
-      await downloads.save({ filename, data: text });
+      await downloads.save({ filename, data: typeof content === 'string' ? content : blob });
       return 'saved';
     } catch (e) {
       return (e as { code?: string }).code === 'declined' ? 'declined' : 'unavailable';
     }
   }
-  const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -55,6 +59,8 @@ export async function saveTextFile(filename: string, text: string): Promise<Save
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return 'saved';
 }
+
+export const saveTextFile = (filename: string, text: string) => saveFile(filename, text);
 
 /** Copies text; must be called from a click handler. */
 export async function copyText(text: string): Promise<boolean> {
