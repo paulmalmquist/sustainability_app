@@ -73,7 +73,7 @@ export function advise(
       kept.push(f);
       continue;
     }
-    const auto = f.rule.severity !== 'info' || d === 'use-benchmark';
+    const auto = (f.rule.severity !== 'info' && f.rule.benchmark?.auto !== false) || d === 'use-benchmark';
     if (f.rule.benchmark && auto) {
       if (correctedKeys.has(f.rule.benchmark.input)) {
         superseded.push(f);
@@ -93,7 +93,9 @@ export function advise(
   const questions = findings.filter(
     (f) => f.rule.severity !== 'info' && !keptIds.has(f.rule.id) && (f.rule.ask || !correctedIds.has(f.rule.id)),
   );
-  const notes = findings.filter((f) => f.rule.severity === 'info' && !correctedIds.has(f.rule.id));
+  const notes = findings.filter(
+    (f) => (f.rule.severity === 'info' || f.rule.benchmark?.auto === false) && !correctedIds.has(f.rule.id) && !keptIds.has(f.rule.id),
+  );
 
   const discountedMWh = corrected.rows.reduce((sum, r) => sum + r.generationMWh * r.discountFactor, 0);
   const premiumPerMWh = discountedMWh > 0 ? -corrected.npvAdvantage / discountedMWh : NaN;

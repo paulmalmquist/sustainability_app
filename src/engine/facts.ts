@@ -1,3 +1,4 @@
+import { dataFacts } from './marketData.ts';
 import { breakEvenEscalation, breakEvenStrike, runModel } from './model.ts';
 import type { Facts, Inputs, ModelResult } from './types.ts';
 
@@ -37,7 +38,7 @@ export const FACTS: FactDef[] = [
   { key: 'transactionCost', label: 'Transaction costs', format: 'usd', kind: 'input', help: 'One-time legal, advisory, and procurement costs', range: [0, 100e6], source: 'Quotes from counsel and the procurement advisor' },
   { key: 'hubPrice', label: 'Hub price, year 1', format: 'perMWh', kind: 'input', help: 'Around-the-clock wholesale price', range: [1, 500], core: true, source: 'Dated hub forward curve from a broker or the ISO; stale curves are common' },
   { key: 'wholesaleEscalation', label: 'Wholesale price escalation', format: 'pct', kind: 'input', help: 'Annual growth in wholesale prices', range: [-0.05, 0.25], core: true, source: 'Advisor’s long-run fundamentals forecast; cross-check with EIA’s Annual Energy Outlook. A single year’s inflation is not a forecast' },
-  { key: 'captureRate', label: 'Capture rate', format: 'pct', kind: 'input', help: "Project's generation-weighted price as a share of the around-the-clock price", range: [-1, 1.5], source: 'Shape or capture study for the project’s location' },
+  { key: 'captureRate', label: 'Capture rate', format: 'pct', kind: 'input', help: "Project's generation-weighted price as a share of the around-the-clock price", range: [-1.5, 2.5], source: 'Shape or capture study for the project’s location' },
   { key: 'annualLoadMWh', label: 'Annual load', format: 'mwh', kind: 'input', help: 'Electricity use to be matched with RECs', range: [1, 1e9], core: true, source: 'Utility bills or the energy management system, for the sites the claim covers' },
   { key: 'recPrice', label: 'REC price, year 1', format: 'perMWh', kind: 'input', help: 'Unbundled REC price', range: [0, 100], core: true, source: 'Broker quote for the exact product and vintage (national voluntary vs. state compliance)' },
   { key: 'recEscalation', label: 'REC price escalation', format: 'pct', kind: 'input', help: 'Annual growth in REC prices', range: [-0.2, 0.5], source: 'Broker view; voluntary REC prices have no steady trend' },
@@ -62,6 +63,24 @@ export const FACTS: FactDef[] = [
   { key: 'breakEvenStrike', label: 'Break-even strike price', format: 'perMWh', kind: 'derived', help: 'Strike at which both options cost the same' },
   { key: 'lateValueShare', label: 'VPPA upside after year 10', format: 'pct', kind: 'derived', help: 'Share of discounted positive settlements that arrive after year 10' },
   { key: 'firstPositiveYear', label: 'First year the VPPA pays out', format: 'year', kind: 'derived', help: '0 when it never does' },
+
+  // From public market data (scripts/data/refresh.py). Absent when the data is.
+  { key: 'expectedInflation', label: 'Inflation markets expect (10 yr)', format: 'pct', kind: 'derived', help: '10-year breakeven inflation, FRED' },
+  { key: 'escalationOverInflation', label: 'Escalation above expected inflation', format: 'pct', kind: 'derived', help: 'Assumed wholesale escalation minus expected inflation' },
+  { key: 'recentInflation', label: 'Inflation, last 12 months', format: 'pct', kind: 'derived', help: 'CPI, FRED' },
+  { key: 'inflationPeak2022', label: 'Inflation peak in 2022', format: 'pct', kind: 'derived', help: 'Highest 12-month CPI change in 2022, FRED' },
+  { key: 'treasury10y', label: '10-year Treasury yield', format: 'pct', kind: 'derived', help: 'Risk-free rate, FRED' },
+  { key: 'discountOverTreasury', label: 'Discount rate above Treasuries', format: 'pct', kind: 'derived', help: 'Discount rate minus the 10-year Treasury yield' },
+  { key: 'marketCostOfCapital', label: 'Average US cost of capital', format: 'pct', kind: 'derived', help: 'Damodaran, all US companies' },
+  { key: 'hasPriceData', label: 'Market price data available', format: 'bool', kind: 'derived', help: 'Hourly hub prices were fetched for this market' },
+  { key: 'marketHubPrice', label: 'Market average price, past year', format: 'perMWh', kind: 'derived', help: 'Average day-ahead price at the market’s main hub' },
+  { key: 'hubPriceVsMarket', label: 'Hub price vs. past year', format: 'multiple', kind: 'derived', help: 'Assumed year-1 hub price divided by the past year’s average' },
+  { key: 'marketNegativeHourShare', label: 'Hours with negative prices', format: 'pct', kind: 'derived', help: 'Share of day-ahead hours below $0 at the hub, past year' },
+  { key: 'marketCaptureRate', label: 'Capture rate in this market', format: 'pct', kind: 'derived', help: 'What solar or wind output earned vs. the average price, past year' },
+  { key: 'expectedCaptureRate', label: 'Expected capture rate', format: 'pct', kind: 'derived', help: 'Measured in this market when available; otherwise a planning default (solar 85%, wind 90%)' },
+  { key: 'captureRateVsMarket', label: 'Capture rate above market', format: 'pct', kind: 'derived', help: 'Assumed capture rate minus what the market delivered' },
+  { key: 'expectedCapacityFactor', label: 'Expected capacity factor', format: 'pct', kind: 'derived', help: 'NREL PVWatts for the region (solar) or the US fleet average (EIA)' },
+  { key: 'capacityFactorVsExpected', label: 'Capacity factor above expected', format: 'pct', kind: 'derived', help: 'Assumed capacity factor minus the expected one' },
 ];
 
 export const FACT_BY_KEY: Record<string, FactDef> = Object.fromEntries(FACTS.map((f) => [f.key, f]));
@@ -105,6 +124,7 @@ export function deriveFacts(inputs: Inputs, result: ModelResult = runModel(input
     breakEvenStrike: breakEvenStrike(inputs),
     lateValueShare: positive > 0 ? positiveLate / positive : 0,
     firstPositiveYear,
+    ...dataFacts(inputs),
   };
 }
 

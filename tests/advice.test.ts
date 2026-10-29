@@ -11,6 +11,8 @@ import { activeRules, applyBenchmarks, parsePlaybook, runPreflight, serializePla
 import { BENCHMARK_SCENARIO, EXAMPLE_SCENARIO } from '../src/engine/scenarios.ts';
 import type { Rule } from '../src/engine/types.ts';
 import { skillFiles } from '../src/skillPackage.ts';
+import { NO_MARKET_DATA, setMarketData, type MarketData } from '../src/engine/marketData.ts';
+import bundledData from '../src/data/market-data.json' with { type: 'json' };
 import { crc32, zip } from '../src/zip.ts';
 
 const rules = activeRules({ custom: [], edits: {}, disabled: [] });
@@ -171,11 +173,17 @@ describe('bundled calculator in the skill', () => {
     const out = JSON.parse(run(join(skillDir, 'example-inputs.json'), '--json'));
     const raw = JSON.parse(readFileSync(join(skillDir, 'example-inputs.json'), 'utf8'));
     const { inputs, assumed } = completeInputs(raw);
-    const expected = adviceSummary(advise(inputs, rules, { assumed }));
-    expect(out.headline).toBe(expected.headline);
-    expect(out.npvAdvantage).toEqual(expected.npvAdvantage);
-    expect(out.corrections).toEqual(expected.corrections);
-    expect(out.markdown).toBe(renderAdvice(advise(inputs, rules, { assumed })));
+    // The calculator ships with the refreshed data, so compare against the same snapshot.
+    setMarketData(bundledData as MarketData);
+    try {
+      const expected = adviceSummary(advise(inputs, rules, { assumed }));
+      expect(out.headline).toBe(expected.headline);
+      expect(out.npvAdvantage).toEqual(expected.npvAdvantage);
+      expect(out.corrections).toEqual(expected.corrections);
+      expect(out.markdown).toBe(renderAdvice(advise(inputs, rules, { assumed })));
+    } finally {
+      setMarketData(NO_MARKET_DATA);
+    }
   });
 
   it('applies team checks from a file', () => {

@@ -1,6 +1,7 @@
 import { BUILT_IN_RULES } from './builtinRules.ts';
 import { deriveFacts } from './facts.ts';
 import { renderTemplate } from './format.ts';
+import { resolveBenchmark } from './marketData.ts';
 import { runModel, withInput } from './model.ts';
 import { CATEGORIES, OPERATORS, SEVERITIES, type Condition, type Facts, type Finding, type Inputs, type ModelResult, type PlaybookState, type Rule, type Severity } from './types.ts';
 
@@ -76,8 +77,10 @@ export function runPreflight(inputs: Inputs, rules: Rule[], base: ModelResult = 
   const facts = deriveFacts(inputs, base);
   const findings: Finding[] = [];
 
-  for (const rule of rules) {
-    if (!ruleFires(rule, facts)) continue;
+  for (const original of rules) {
+    if (!ruleFires(original, facts)) continue;
+    // Benchmarks backed by public data take today's value for this market.
+    const rule = original.benchmark ? { ...original, benchmark: resolveBenchmark(original.benchmark, inputs) } : original;
     const finding: Finding = { rule, message: renderTemplate(rule.message, facts) };
     if (rule.benchmark) {
       const after = runModel(withInput(inputs, rule.benchmark.input, rule.benchmark.value));

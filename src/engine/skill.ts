@@ -1,5 +1,6 @@
 import { FACTS, type FactFormat } from './facts.ts';
-import { describeCondition, formatFact } from './format.ts';
+import { describeCondition, fmtPct, fmtPerMWh, formatFact } from './format.ts';
+import { marketData } from './marketData.ts';
 import { CATEGORIES, type Rule } from './types.ts';
 
 export const SKILL_NAME = 'vppa-rec-assumption-review';
@@ -48,8 +49,11 @@ export function renderSkill(rules: Rule[], opts: { generatedOn?: string } = {}):
     'If Node isn’t available, apply the checks by hand: evaluate each check’s conditions, swap in the benchmark for every critical or warning finding that has one, compare the corrected cost of each option, and present the result in the same order as step 3.',
   );
   out.push('');
-  out.push('Benchmarks are defaults with sources and dates. If you have newer market data, say so and re-run with it.');
+  out.push(
+    'Benchmarks come from public market data refreshed weekly (see "Market data" below) or, where no free source exists, from dated defaults. Strike and REC prices have no free feed: search the web for the latest LevelTen PPA Price Index and a current REC quote for the right product, tell the user what you found, and compare them with the model.',
+  );
   out.push('');
+  out.push(...marketDataSection());
   out.push('## Input keys');
   out.push('');
   out.push(
@@ -92,7 +96,11 @@ export function renderSkill(rules: Rule[], opts: { generatedOn?: string } = {}):
       out.push(`- **Fires when:** ${r.when.map(describeCondition).join(' AND ')}`);
       out.push(`- **Report:** ${r.message}`);
       out.push(`- **Why:** ${r.why}`);
-      if (r.benchmark) {
+      if (r.benchmark?.data) {
+        out.push(
+          `- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: ${r.benchmark.label} (\`${r.benchmark.input}\` = ${formatFact(r.benchmark.input, r.benchmark.value)})`,
+        );
+      } else if (r.benchmark) {
         out.push(`- **Benchmark:** ${r.benchmark.label} (set \`${r.benchmark.input}\` = ${formatFact(r.benchmark.input, r.benchmark.value)})`);
       }
       if (r.ask) out.push(`- **Ask:** ${r.ask}`);
@@ -154,4 +162,45 @@ const MISSING: Record<string, string> = {
 function stripForExport(r: Rule) {
   const { id, title, severity, category, when, benchmark } = r;
   return { id, title, severity, category, when, ...(benchmark ? { benchmark: { input: benchmark.input, value: benchmark.value } } : {}) };
+}
+
+function marketDataSection(): string[] {
+  const d = marketData();
+  if (!d.generatedAt) return [];
+  const L: string[] = [`## Market data (refreshed ${d.generatedAt.slice(0, 10)})`, ''];
+  L.push('The calculator already uses these. Quote them when you explain a correction.');
+  L.push('');
+  if (d.inflation) {
+    L.push(
+      `- Inflation bond markets expect over 10 years: ${fmtPct(d.inflation.breakeven10y)}. Last 12 months (CPI, ${d.inflation.cpiYoYMonth}): ${fmtPct(d.inflation.cpiYoY)}. 2022 peak: ${fmtPct(d.inflation.cpiPeak2022)}. _(${d.inflation.source}, ${d.inflation.asOf})_`,
+    );
+  }
+  if (d.rates) L.push(`- 10-year Treasury: ${fmtPct(d.rates.treasury10y)}; Baa corporate bonds: ${fmtPct(d.rates.baaCorporate)}. _(${d.rates.source}, ${d.rates.asOf})_`);
+  if (d.costOfCapital) {
+    L.push(
+      `- US cost of capital: ${fmtPct(d.costOfCapital.totalMarket)} overall; ${fmtPct(d.costOfCapital.p10)} to ${fmtPct(d.costOfCapital.p90)} across ${d.costOfCapital.industries} industries. _(${d.costOfCapital.source}, ${d.costOfCapital.asOf})_`,
+    );
+  }
+  if (d.capacityFactors) {
+    L.push(`- US fleet capacity factors: solar ${fmtPct(d.capacityFactors.solar)}, wind ${fmtPct(d.capacityFactors.wind)}, ${d.capacityFactors.period}. _(${d.capacityFactors.source})_`);
+  }
+  const markets = Object.entries(d.markets ?? {});
+  if (markets.length) {
+    L.push('');
+    L.push('| Market | Hub | Avg day-ahead price | Negative-price hours | Solar capture | Wind capture | Period |');
+    L.push('|---|---|---|---|---|---|---|');
+    for (const [m, p] of markets) {
+      if (!p) continue;
+      L.push(
+        `| ${m} | ${p.hub} | ${fmtPerMWh(p.atcPrice)} | ${fmtPct(p.negativeHourShare)} | ${p.solarCapture !== undefined ? fmtPct(p.solarCapture) : 'n/a'} | ${p.windCapture !== undefined ? fmtPct(p.windCapture) : 'n/a'} | ${p.period} |`,
+      );
+    }
+  }
+  const down = (d.sources ?? []).filter((s) => s.status !== 'ok');
+  if (down.length) {
+    L.push('');
+    L.push(`Not refreshed this time: ${down.map((s) => `${s.name} (${s.status})`).join('; ')}.`);
+  }
+  L.push('');
+  return L;
 }

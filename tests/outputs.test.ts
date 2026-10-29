@@ -9,7 +9,9 @@ import { reviewStatus, reviewedInputs } from '../src/engine/review.ts';
 import { activeRules, runPreflight } from '../src/engine/rules.ts';
 import { EXAMPLE_SCENARIO } from '../src/engine/scenarios.ts';
 import { buildSecondLookPrompt, parseSuggestionText, parseSuggestions } from '../src/engine/secondLook.ts';
+import { NO_MARKET_DATA, setMarketData, type MarketData } from '../src/engine/marketData.ts';
 import { renderSkill, SKILL_NAME } from '../src/engine/skill.ts';
+import bundledData from '../src/data/market-data.json' with { type: 'json' };
 import type { ReviewState, Rule } from '../src/engine/types.ts';
 
 const rules = activeRules({ custom: [], edits: {}, disabled: [] });
@@ -73,7 +75,12 @@ describe('Claude skill export', () => {
 
   it('matches the checked-in skill file (run npm run export-skill after changing checks)', () => {
     const onDisk = readFileSync(new URL(`../skill/${SKILL_NAME}/SKILL.md`, import.meta.url), 'utf8');
-    expect(onDisk).toBe(renderSkill(BUILT_IN_RULES));
+    setMarketData(bundledData as MarketData);
+    try {
+      expect(onDisk).toBe(renderSkill(BUILT_IN_RULES));
+    } finally {
+      setMarketData(NO_MARKET_DATA);
+    }
   });
 });
 

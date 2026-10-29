@@ -5,6 +5,7 @@ import { fmtPerMWh, fmtUSD, formatFact } from '../engine/format.ts';
 import { readAssumptions, type ReadLine } from '../engine/inputs.ts';
 import { shift } from '../engine/memo.ts';
 import type { Inputs } from '../engine/types.ts';
+import { marketData } from '../engine/marketData.ts';
 import { capability, inClaudeViewer, type SampleFn } from '../runtime.ts';
 import { ExportButtons } from './ui.tsx';
 
@@ -325,6 +326,13 @@ export function AdviceView({ advice, onRead, onExample, onOpenReview }: Props) {
                 ))}
               </ul>
             </div>
+          ) : null}
+
+          {marketData().generatedAt ? (
+            <p className="small muted">
+              Benchmarks use public market data refreshed {marketData().generatedAt!.slice(0, 10)} (inflation, interest rates,
+              cost of capital, grid prices, solar and wind output). Sources are under How it works.
+            </p>
           ) : null}
 
           <p className="leaves-out">
