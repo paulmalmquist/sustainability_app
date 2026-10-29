@@ -12,7 +12,8 @@
     "test": "vitest run",
     "typecheck": "tsc -b",
     "export-skill": "node --experimental-strip-types scripts/export-skill.ts",
-    "build:artifact": "npm run build:single && node scripts/build-artifact.mjs"
+    "build:artifact": "npm run build:single && node scripts/build-artifact.mjs",
+    "build:skill": "vite build --config vite.skill.config.ts && npm run export-skill"
   },
   "dependencies": {
     "react": "^19.3.1",

@@ -1,6 +1,24 @@
 # PPA Preflight
 
-A VPPA vs. unbundled REC comparison that checks its own assumptions before it shows a result, prices each problem, and holds the answer as a draft until a named reviewer signs off. When a review catches something the checks missed, the reviewer adds it as a new check. From then on it runs on every analysis, and it exports as a Claude skill so Claude raises it too.
+Give it the assumptions behind a VPPA vs. unbundled REC comparison. You get one piece of advice back: which option is cheaper once unrealistic assumptions are corrected, how confident that is, what would change the answer, and what to ask whoever built the model.
+
+The advice comes from a playbook of checks written by experienced reviewers. When a review catches something the checks missed, it becomes a new check. From then on it runs every time, in the app and in Claude.
+
+**Live app:** https://paulmalmquist.github.io/sustainability_app/
+
+## Three ways to get advice
+
+1. **Ask Claude.** Download the skill (Playbook tab → *Download skill (.zip)*) and upload it to Claude. Then give Claude the model in any form (spreadsheet, PDF, slide, pasted numbers) and ask which option is better. Claude extracts the assumptions, runs the bundled calculator, and replies with the advice, plus anything it notices that the checks don't cover.
+2. **Paste into the app.** On the Advice tab, paste the assumption rows from Excel ("Wholesale price inflation · 7.5%") and choose *Read assumptions*. Anything missing is filled with a benchmark and listed.
+3. **Command line.** `node skill/vppa-rec-assumption-review/scripts/preflight.mjs inputs.json` prints the advice as Markdown. Add `--json` for structured output and `--checks team-checks.json` for your team's checks.
+
+For the 7.5% example, the advice reads:
+
+> **Buy unbundled RECs. At $63.00/MWh, this VPPA costs $14.4M more over 15 years.**
+> The model as submitted says the opposite (the VPPA by $25.1M), mainly because of one assumption: wholesale price escalation far above long-run norms. The VPPA only beats RECs at a strike below $52.72/MWh. […]
+> **Confidence:** High: no single assumption, moved across its plausible range, reverses this.
+
+The **Detailed review** tab is still there for anyone who wants to see each flag, decide it by hand, and sign off. Decisions made there carry into the advice.
 
 ## Why it exists
 
@@ -39,19 +57,25 @@ Click **Load the 7.5% example** (it loads by default). An 80 MW solar VPPA in PJ
 
 ## The Claude skill
 
-[`skill/vppa-rec-assumption-review/SKILL.md`](skill/vppa-rec-assumption-review/SKILL.md) is the built-in playbook as a Claude skill. It covers the procedure (findings before the headline, draft until signed, propose new checks for anything missed), every check with its benchmark, source, and question, and a machine-readable copy.
+[`skill/vppa-rec-assumption-review/`](skill/vppa-rec-assumption-review/) contains:
 
-- **Claude Code:** copy the `vppa-rec-assumption-review` folder into `~/.claude/skills/` (or a project's `.claude/skills/`).
-- **Claude apps:** zip the folder and upload it as a custom skill.
-- **Including your team's checks:** in the app, open Playbook → *Download SKILL.md*. The export includes every check you've added, with who added it.
+- `SKILL.md`: the procedure (extract → run → advise → add your own read), the input keys and what happens when one is missing, and every check with its benchmark, source, and question.
+- `scripts/preflight.mjs`: the calculator, a single dependency-free Node file built from `src/engine`.
+- `example-inputs.json`: the 7.5% example in the input format.
+- `team-checks.json`: optional. The app's skill download adds it when your team has added, recalibrated, or turned off checks, and the calculator loads it automatically.
 
-Regenerate the checked-in file after changing the built-in checks:
+To install it:
+
+- **Claude apps:** upload the zip from the app's Playbook tab as a skill.
+- **Claude Code:** copy the folder into `~/.claude/skills/`.
+
+Rebuild after changing the engine or the built-in checks:
 
 ```sh
-npm run export-skill
+npm run build:skill
 ```
 
-A test fails if the checked-in skill drifts from the code.
+Tests fail if the checked-in skill or calculator drifts from the code.
 
 ## Benchmarks
 
@@ -74,12 +98,17 @@ npm test               # engine tests (model, checks, review gate, memo, skill e
 npm run typecheck
 npm run build          # static site in dist/
 npm run build:artifact # single self-contained page in dist-artifact/
+npm run build:skill    # bundled calculator + SKILL.md in skill/
 ```
+
+Every push to `main` runs the checks and republishes the live app on GitHub Pages (`.github/workflows/ci.yml`).
 
 The engine in `src/engine/` is plain TypeScript with no UI dependencies:
 
 | File | What it does |
 |---|---|
+| `advice.ts` | Turns a scenario into one recommendation, with confidence and what would change it |
+| `inputs.ts` | Fills gaps in partial inputs; reads assumptions pasted from a spreadsheet |
 | `model.ts` | Cash-flow model, break-even solver |
 | `facts.ts` | Every value a check can test, inputs and calculated |
 | `builtinRules.ts` | The starter playbook |
@@ -90,4 +119,4 @@ The engine in `src/engine/` is plain TypeScript with no UI dependencies:
 | `skill.ts` | SKILL.md export |
 | `secondLook.ts` | Prompt and parser for Claude's second look |
 
-Your scenario, decisions, and added checks are saved in the browser's local storage. Use Playbook → *Download JSON* / *Import JSON* to share checks with colleagues.
+Your scenario, decisions, and added checks are saved in the browser's local storage. Use Playbook → *Download JSON* / *Import JSON* (`team-checks.json`) to share checks with colleagues.

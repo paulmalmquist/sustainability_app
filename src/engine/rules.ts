@@ -2,7 +2,7 @@ import { BUILT_IN_RULES } from './builtinRules.ts';
 import { deriveFacts } from './facts.ts';
 import { renderTemplate } from './format.ts';
 import { runModel, withInput } from './model.ts';
-import type { Condition, Facts, Finding, Inputs, ModelResult, PlaybookState, Rule, Severity } from './types.ts';
+import { CATEGORIES, OPERATORS, SEVERITIES, type Condition, type Facts, type Finding, type Inputs, type ModelResult, type PlaybookState, type Rule, type Severity } from './types.ts';
 
 const EPSILON = 1e-9;
 
@@ -112,4 +112,52 @@ export function newRuleId(existing: Rule[]): string {
   let n = existing.filter((r) => r.origin === 'team').length + 1;
   while (taken.has(`TEAM-${String(n).padStart(2, '0')}`)) n++;
   return `TEAM-${String(n).padStart(2, '0')}`;
+}
+
+function asRule(raw: unknown, origin: Rule['origin']): Rule | null {
+  if (!raw || typeof raw !== 'object') return null;
+  const r = raw as Partial<Rule>;
+  if (typeof r.id !== 'string' || typeof r.title !== 'string' || !Array.isArray(r.when)) return null;
+  const when = r.when.filter(
+    (c): c is Condition => !!c && typeof c === 'object' && typeof c.fact === 'string' && OPERATORS.includes(c.op),
+  );
+  if (!when.length) return null;
+  return {
+    ...r,
+    id: r.id,
+    title: r.title,
+    when,
+    severity: SEVERITIES.includes(r.severity as Severity) ? (r.severity as Severity) : 'warning',
+    category: CATEGORIES.includes(r.category as Rule['category']) ? (r.category as Rule['category']) : 'Result robustness',
+    message: typeof r.message === 'string' && r.message ? r.message : `${r.title}.`,
+    why: typeof r.why === 'string' ? r.why : '',
+    origin,
+  };
+}
+
+/**
+ * Reads a shared playbook file: the current format ({custom, edits,
+ * disabled}), the earlier {rules: [...]} export, or a bare array of checks.
+ */
+export function parsePlaybook(data: unknown): PlaybookState {
+  const obj = (Array.isArray(data) ? { rules: data } : data ?? {}) as Record<string, unknown>;
+  const builtInIds = new Set(BUILT_IN_RULES.map((r) => r.id));
+  const list = Array.isArray(obj.custom) ? obj.custom : Array.isArray(obj.rules) ? obj.rules : [];
+  const custom = list
+    .map((r) => asRule(r, 'team'))
+    .filter((r): r is Rule => r !== null && !builtInIds.has(r.id));
+  const edits: Record<string, Rule> = {};
+  if (obj.edits && typeof obj.edits === 'object') {
+    for (const [id, r] of Object.entries(obj.edits as Record<string, unknown>)) {
+      const rule = asRule(r, 'built-in');
+      if (rule && builtInIds.has(id) && rule.id === id) edits[id] = rule;
+    }
+  }
+  const disabled = Array.isArray(obj.disabled) ? obj.disabled.filter((d): d is string => typeof d === 'string') : [];
+  if (!custom.length && !Object.keys(edits).length && !disabled.length) throw new Error('No checks found.');
+  return { custom, edits, disabled };
+}
+
+export function serializePlaybook(playbook: PlaybookState, exportedOn: string) {
+  return { app: 'ppa-preflight', version: 2, exportedOn, ...playbook };
 }
