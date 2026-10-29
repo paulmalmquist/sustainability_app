@@ -1,0 +1,103 @@
+import { breakEvenEscalation, breakEvenStrike, runModel } from './model.ts';
+import type { Facts, Inputs, ModelResult } from './types.ts';
+
+export type FactFormat = 'pct' | 'usd' | 'perMWh' | 'mwh' | 'mw' | 'years' | 'multiple' | 'year' | 'bool' | 'text';
+
+export interface FactDef {
+  key: string;
+  label: string;
+  format: FactFormat;
+  kind: 'input' | 'derived';
+  help: string;
+  options?: string[];
+}
+
+/**
+ * Every value a check can test. Inputs come straight from the form; derived
+ * facts are computed from the model so checks can look at consequences
+ * (e.g. "what hub price does this escalation imply in the final year?").
+ */
+export const FACTS: FactDef[] = [
+  { key: 'technology', label: 'Technology', format: 'text', kind: 'input', help: 'solar or wind', options: ['solar', 'wind'] },
+  { key: 'market', label: 'Market', format: 'text', kind: 'input', help: 'ISO/RTO the project sits in', options: ['ERCOT', 'PJM', 'MISO', 'SPP', 'CAISO', 'NYISO', 'ISO-NE', 'Other'] },
+  { key: 'capacityMW', label: 'Project size', format: 'mw', kind: 'input', help: 'Contracted capacity, MW AC' },
+  { key: 'capacityFactor', label: 'Capacity factor', format: 'pct', kind: 'input', help: 'Average output as a share of nameplate' },
+  { key: 'degradation', label: 'Output degradation', format: 'pct', kind: 'input', help: 'Annual loss of output' },
+  { key: 'termYears', label: 'Contract term', format: 'years', kind: 'input', help: 'VPPA length in years' },
+  { key: 'strikePrice', label: 'Strike price', format: 'perMWh', kind: 'input', help: 'Fixed VPPA price, year 1' },
+  { key: 'strikeEscalation', label: 'Strike escalator', format: 'pct', kind: 'input', help: 'Annual increase in the strike price' },
+  { key: 'settlementPoint', label: 'Settlement point', format: 'text', kind: 'input', help: 'hub or node', options: ['hub', 'node'] },
+  { key: 'basis', label: 'Basis (node minus hub)', format: 'perMWh', kind: 'input', help: 'Applies only to node settlement' },
+  { key: 'transactionCost', label: 'Transaction costs', format: 'usd', kind: 'input', help: 'One-time legal, advisory, and procurement costs' },
+  { key: 'hubPrice', label: 'Hub price, year 1', format: 'perMWh', kind: 'input', help: 'Around-the-clock wholesale price' },
+  { key: 'wholesaleEscalation', label: 'Wholesale price escalation', format: 'pct', kind: 'input', help: 'Annual growth in wholesale prices' },
+  { key: 'captureRate', label: 'Capture rate', format: 'pct', kind: 'input', help: "Project's generation-weighted price as a share of the around-the-clock price" },
+  { key: 'annualLoadMWh', label: 'Annual load', format: 'mwh', kind: 'input', help: 'Electricity use to be matched with RECs' },
+  { key: 'recPrice', label: 'REC price, year 1', format: 'perMWh', kind: 'input', help: 'Unbundled REC price' },
+  { key: 'recEscalation', label: 'REC price escalation', format: 'pct', kind: 'input', help: 'Annual growth in REC prices' },
+  { key: 'discountRate', label: 'Discount rate', format: 'pct', kind: 'input', help: 'Rate used to discount future costs' },
+  { key: 'accountingReviewed', label: 'Derivative accounting reviewed', format: 'bool', kind: 'input', help: 'ASC 815 / IFRS 9 treatment confirmed' },
+  { key: 'creditSupportReviewed', label: 'Credit support reviewed', format: 'bool', kind: 'input', help: 'Collateral or guarantee requirements known' },
+  { key: 'negativePriceTermsReviewed', label: 'Negative-price terms reviewed', format: 'bool', kind: 'input', help: 'Floor or curtailment clause checked' },
+  { key: 'marketBoundaryConfirmed', label: 'REC market boundary confirmed', format: 'bool', kind: 'input', help: 'RECs come from the same market as the load' },
+  { key: 'scope2RevisionConsidered', label: 'Scope 2 revision considered', format: 'bool', kind: 'input', help: 'GHG Protocol Scope 2 proposals reviewed' },
+
+  { key: 'year1GenerationMWh', label: 'Year-1 generation', format: 'mwh', kind: 'derived', help: 'Size x 8,760 h x capacity factor' },
+  { key: 'coverageRatio', label: 'Load covered by the project', format: 'pct', kind: 'derived', help: 'Year-1 generation / annual load' },
+  { key: 'year1SettlementPrice', label: 'Project market value, year 1', format: 'perMWh', kind: 'derived', help: 'Hub price x capture rate (+ basis at a node)' },
+  { key: 'year1SpreadToStrike', label: 'Year-1 market value minus strike', format: 'perMWh', kind: 'derived', help: 'Negative means the buyer pays in year 1' },
+  { key: 'finalYearHubPrice', label: 'Hub price in final year', format: 'perMWh', kind: 'derived', help: 'Year-1 hub price compounded over the term' },
+  { key: 'hubPriceMultiple', label: 'Final-year hub price vs. today', format: 'multiple', kind: 'derived', help: 'How many times today’s price the model assumes by the last year' },
+  { key: 'escalationMinusDiscount', label: 'Escalation minus discount rate', format: 'pct', kind: 'derived', help: 'Positive means distant years weigh as much as near ones' },
+  { key: 'npvAdvantage', label: 'VPPA advantage (NPV)', format: 'usd', kind: 'derived', help: 'REC strategy cost minus VPPA cost; positive favors the VPPA' },
+  { key: 'recommendsVppa', label: 'Result favors the VPPA', format: 'bool', kind: 'derived', help: 'true when the VPPA costs less' },
+  { key: 'breakEvenEscalation', label: 'Break-even escalation', format: 'pct', kind: 'derived', help: 'Escalation at which both options cost the same' },
+  { key: 'escalationCushion', label: 'Distance to break-even escalation', format: 'pct', kind: 'derived', help: 'Absolute gap between assumed and break-even escalation' },
+  { key: 'breakEvenStrike', label: 'Break-even strike price', format: 'perMWh', kind: 'derived', help: 'Strike at which both options cost the same' },
+  { key: 'lateValueShare', label: 'VPPA upside after year 10', format: 'pct', kind: 'derived', help: 'Share of discounted positive settlements that arrive after year 10' },
+  { key: 'firstPositiveYear', label: 'First year the VPPA pays out', format: 'year', kind: 'derived', help: '0 when it never does' },
+];
+
+export const FACT_BY_KEY: Record<string, FactDef> = Object.fromEntries(FACTS.map((f) => [f.key, f]));
+
+export function deriveFacts(inputs: Inputs, result: ModelResult = runModel(inputs)): Facts {
+  const plain: Facts = { ...inputs.diligence };
+  for (const [key, value] of Object.entries(inputs)) {
+    if (typeof value !== 'object') plain[key] = value;
+  }
+  const rows = result.rows;
+  const year1 = rows[0];
+  const last = rows[rows.length - 1];
+
+  let positive = 0;
+  let positiveLate = 0;
+  let firstPositiveYear = 0;
+  for (const row of rows) {
+    if (row.settlement > 0) {
+      const pv = row.settlement * row.discountFactor;
+      positive += pv;
+      if (row.year > 10) positiveLate += pv;
+      if (!firstPositiveYear) firstPositiveYear = row.year;
+    }
+  }
+
+  const beEsc = breakEvenEscalation(inputs);
+
+  return {
+    ...plain,
+    year1GenerationMWh: year1.generationMWh,
+    coverageRatio: inputs.annualLoadMWh > 0 ? year1.generationMWh / inputs.annualLoadMWh : 0,
+    year1SettlementPrice: year1.settlementPrice,
+    year1SpreadToStrike: year1.settlementPrice - year1.strikePrice,
+    finalYearHubPrice: last.hubPrice,
+    hubPriceMultiple: inputs.hubPrice > 0 ? last.hubPrice / inputs.hubPrice : 0,
+    escalationMinusDiscount: inputs.wholesaleEscalation - inputs.discountRate,
+    npvAdvantage: result.npvAdvantage,
+    recommendsVppa: result.recommendation === 'VPPA',
+    breakEvenEscalation: beEsc,
+    escalationCushion: Math.abs(inputs.wholesaleEscalation - beEsc),
+    breakEvenStrike: breakEvenStrike(inputs),
+    lateValueShare: positive > 0 ? positiveLate / positive : 0,
+    firstPositiveYear,
+  };
+}
