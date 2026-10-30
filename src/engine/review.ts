@@ -23,10 +23,14 @@ export function openFindings(findings: Finding[], review: ReviewState): Finding[
 
 /** The scenario after the reviewer's decisions: benchmarks swapped in where chosen. */
 export function reviewedInputs(inputs: Inputs, findings: Finding[], review: ReviewState): Inputs {
+  // Findings are ordered most serious first; the first benchmark chosen for an input wins.
+  const done = new Set<string>();
   let next = inputs;
   for (const f of findings) {
     const b = f.rule.benchmark;
-    if (b && decisionFor(review, f.rule.id).disposition === 'use-benchmark') next = withInput(next, b.input, b.value);
+    if (!b || done.has(b.input) || decisionFor(review, f.rule.id).disposition !== 'use-benchmark') continue;
+    done.add(b.input);
+    next = withInput(next, b.input, b.value);
   }
   return next;
 }

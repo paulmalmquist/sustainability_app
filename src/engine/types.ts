@@ -117,10 +117,20 @@ export interface Condition {
   value: FactValue | [number, number];
 }
 
+/** Public data a benchmark can come from; the value and label are refreshed from it. */
+export type DataBenchmark = 'escalation' | 'hubPrice' | 'captureRate' | 'capacityFactor' | 'discountRate';
+
 export interface Benchmark {
   input: NumericInputKey;
+  /** Used as is, or as the fallback when `data` is set but unavailable. */
   value: number;
   label: string;
+  data?: DataBenchmark;
+  /**
+   * false: the advice reports this benchmark and its effect but doesn't swap it
+   * in on its own, because a better source exists (e.g. a forward curve).
+   */
+  auto?: boolean;
 }
 
 /**

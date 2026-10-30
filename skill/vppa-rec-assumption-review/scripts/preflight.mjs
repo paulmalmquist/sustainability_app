@@ -2,6 +2,319 @@
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+// src/engine/marketData.ts
+var current = {
+	inflation: {
+		"breakeven10y": .0235,
+		"forward5y5y": .0231,
+		"cpiYoY": .0402,
+		"cpiYoYMonth": "2026-09",
+		"cpiPeak2022": .0898,
+		"asOf": "2026-10-28",
+		"source": "FRED: 10-year breakeven inflation (T10YIE), 5-year forward inflation expectation (T5YIFR), CPI (CPIAUCSL)"
+	},
+	rates: {
+		"treasury10y": .0516,
+		"baaCorporate": .0661,
+		"asOf": "2026-10-28",
+		"source": "FRED: 10-year Treasury yield (DGS10), Moody's Baa corporate bond yield (DBAA)"
+	},
+	costOfCapital: {
+		"totalMarket": .0696,
+		"p10": .0521,
+		"median": .0709,
+		"p90": .0848,
+		"industries": 94,
+		"asOf": "2026-01-05",
+		"source": "Aswath Damodaran, NYU Stern: cost of capital by industry, US companies"
+	},
+	capacityFactors: {
+		"solar": .2398,
+		"wind": .3431,
+		"period": "2025-09 to 2026-08",
+		"asOf": "2026-08",
+		"source": "EIA Electric Power Monthly, Table 6.07.B (utility-scale fleet, trailing 12 months)"
+	},
+	onPeak: {
+		"CAISO": {
+			"hub": "SP15 EZ Gen DA LMP Peak",
+			"onPeakPrice": 27.91,
+			"days": 220
+		},
+		"PJM": {
+			"hub": "PJM WH Real Time Peak",
+			"onPeakPrice": 91.08,
+			"days": 226
+		},
+		"MISO": {
+			"hub": "Indiana Hub RT Peak",
+			"onPeakPrice": 92.31,
+			"days": 46
+		},
+		"ISO-NE": {
+			"hub": "Nepool MH DA LMP Peak",
+			"onPeakPrice": 80.41,
+			"days": 204
+		}
+	},
+	markets: {
+		"ERCOT": {
+			"hub": "HB_NORTH",
+			"atcPrice": 34.8,
+			"negativeHourShare": .0072,
+			"hours": 8734,
+			"period": "2025-10-26 to 2026-10-24",
+			"solarCapture": .689,
+			"windCapture": .8859
+		},
+		"CAISO": {
+			"hub": "TH_SP15_GEN-APND",
+			"atcPrice": 24.73,
+			"negativeHourShare": .1636,
+			"hours": 648,
+			"period": "2025-10-26 to 2026-10-26",
+			"solarCapture": .4333,
+			"windCapture": .9953
+		},
+		"MISO": {
+			"hub": "INDIANA.HUB",
+			"atcPrice": 39.01,
+			"negativeHourShare": 0,
+			"hours": 648,
+			"period": "2025-10-26 to 2026-10-26",
+			"solarCapture": .8705,
+			"windCapture": 1.0077
+		},
+		"SPP": {
+			"hub": "SPPSOUTH_HUB",
+			"atcPrice": 22.83,
+			"negativeHourShare": .1667,
+			"hours": 648,
+			"period": "2025-10-26 to 2026-10-26",
+			"solarCapture": 1.6109,
+			"windCapture": .7264
+		},
+		"NYISO": {
+			"hub": "CENTRL",
+			"atcPrice": 58.2,
+			"negativeHourShare": 0,
+			"hours": 648,
+			"period": "2025-10-26 to 2026-10-26",
+			"windCapture": .9716
+		},
+		"ISO-NE": {
+			"hub": ".H.INTERNAL_HUB",
+			"atcPrice": 66.2,
+			"negativeHourShare": 0,
+			"hours": 648,
+			"period": "2025-10-26 to 2026-10-26",
+			"solarCapture": .7481,
+			"windCapture": .9834
+		}
+	},
+	window: {
+		"start": "2025-10-26",
+		"end": "2026-10-25",
+		"sampledEveryDays": 14
+	},
+	generatedAt: "2026-10-29T21:02:44Z",
+	sources: [
+		{
+			"id": "fred-inflation",
+			"name": "Inflation expectations and CPI (FRED)",
+			"url": "https://fred.stlouisfed.org/series/T10YIE",
+			"status": "ok"
+		},
+		{
+			"id": "fred-rates",
+			"name": "Treasury and corporate bond yields (FRED)",
+			"url": "https://fred.stlouisfed.org/series/DGS10",
+			"status": "ok"
+		},
+		{
+			"id": "damodaran",
+			"name": "Cost of capital by industry (Damodaran, NYU Stern)",
+			"url": "https://pages.stern.nyu.edu/~adamodar/",
+			"status": "ok"
+		},
+		{
+			"id": "eia-capacity-factors",
+			"name": "Fleet capacity factors (EIA Electric Power Monthly)",
+			"url": "https://www.eia.gov/electricity/monthly/",
+			"status": "ok"
+		},
+		{
+			"id": "eia-ice",
+			"name": "On-peak hub prices (EIA wholesale market data)",
+			"url": "https://www.eia.gov/electricity/wholesale/",
+			"status": "ok"
+		},
+		{
+			"id": "nrel-pvwatts",
+			"name": "Expected solar output by region (NREL PVWatts)",
+			"url": "https://pvwatts.nrel.gov/",
+			"status": "failed",
+			"detail": "HTTPSConnectionPool(host='developer.nrel.gov', port=443): Max retries exceeded with url: /api/pvwatts/v8.json?api_key=DEMO_KEY&lat=31.99&lon=-102.08&system_capacity=1000&module_type=0&losses=14&array_type=2&tilt=0&azimuth=180&dc_ac_ratio=1."
+		},
+		{
+			"id": "eia-930",
+			"name": "Hourly solar and wind output by grid operator (EIA-930)",
+			"url": "https://www.eia.gov/electricity/gridmonitor/",
+			"status": "ok"
+		},
+		{
+			"id": "prices-ercot",
+			"name": "Hourly day-ahead prices, ERCOT (HB_NORTH)",
+			"url": "",
+			"status": "ok"
+		},
+		{
+			"id": "prices-caiso",
+			"name": "Hourly day-ahead prices, CAISO (TH_SP15_GEN-APND)",
+			"url": "",
+			"status": "ok"
+		},
+		{
+			"id": "prices-pjm",
+			"name": "Hourly day-ahead prices, PJM (WESTERN HUB)",
+			"url": "",
+			"status": "skipped",
+			"detail": "skipped: set PJM_API_KEY (free from PJM Data Miner) to add hourly PJM prices"
+		},
+		{
+			"id": "prices-miso",
+			"name": "Hourly day-ahead prices, MISO (INDIANA.HUB)",
+			"url": "",
+			"status": "ok"
+		},
+		{
+			"id": "prices-spp",
+			"name": "Hourly day-ahead prices, SPP (SPPSOUTH_HUB)",
+			"url": "",
+			"status": "ok"
+		},
+		{
+			"id": "prices-nyiso",
+			"name": "Hourly day-ahead prices, NYISO (CENTRL)",
+			"url": "",
+			"status": "ok"
+		},
+		{
+			"id": "prices-iso-ne",
+			"name": "Hourly day-ahead prices, ISO-NE (.H.INTERNAL_HUB)",
+			"url": "",
+			"status": "ok"
+		}
+	]
+};
+/** 0.0235 → "2.35%", 0.24 → "24%". */
+var pct = (v) => `${(v * 100).toFixed(Math.abs(v) < .1 ? 2 : 1).replace(/\.?0+$/, "")}%`;
+var day = (iso) => iso ? iso.slice(0, 10) : "n/a";
+/** Facts that compare the scenario with public market data. Absent when the data is. */
+function dataFacts(inputs, data = current) {
+	const f = {};
+	const m = data.markets?.[inputs.market];
+	f.hasPriceData = !!m;
+	if (data.inflation) {
+		f.expectedInflation = data.inflation.breakeven10y;
+		f.escalationOverInflation = inputs.wholesaleEscalation - data.inflation.breakeven10y;
+		f.recentInflation = data.inflation.cpiYoY;
+		f.inflationPeak2022 = data.inflation.cpiPeak2022;
+	}
+	if (data.rates) {
+		f.treasury10y = data.rates.treasury10y;
+		f.discountOverTreasury = inputs.discountRate - data.rates.treasury10y;
+	}
+	if (data.costOfCapital) f.marketCostOfCapital = data.costOfCapital.totalMarket;
+	if (m) {
+		f.marketHubPrice = m.atcPrice;
+		if (m.atcPrice > 0) f.hubPriceVsMarket = inputs.hubPrice / m.atcPrice;
+		f.marketNegativeHourShare = m.negativeHourShare;
+		const capture = inputs.technology === "solar" ? m.solarCapture : m.windCapture;
+		if (capture !== void 0) {
+			f.marketCaptureRate = capture;
+			f.captureRateVsMarket = inputs.captureRate - capture;
+		}
+	}
+	f.expectedCaptureRate = f.marketCaptureRate ?? (inputs.technology === "solar" ? .85 : .9);
+	const expectedCF = expectedCapacityFactor(inputs, data);
+	if (expectedCF) {
+		f.expectedCapacityFactor = expectedCF.value;
+		f.capacityFactorVsExpected = inputs.capacityFactor - expectedCF.value;
+	}
+	return f;
+}
+function expectedCapacityFactor(inputs, data) {
+	if (inputs.technology === "solar") {
+		const site = data.solarSites?.[inputs.market];
+		if (site) return {
+			value: site.capacityFactorAC,
+			label: `NREL PVWatts, single-axis tracker at a representative ${inputs.market} site`
+		};
+	}
+	const fleet = data.capacityFactors;
+	if (!fleet) return void 0;
+	return {
+		value: inputs.technology === "solar" ? fleet.solar : fleet.wind,
+		label: `US ${inputs.technology} fleet average, ${fleet.period} (EIA)`
+	};
+}
+var round = (v, step) => Math.round(v / step) * step;
+/**
+* A benchmark backed by current public data, when the check asks for one and
+* the data exists; otherwise the check's own default.
+*/
+function resolveBenchmark(b, inputs, data = current) {
+	if (!b.data) return b;
+	const m = data.markets?.[inputs.market];
+	switch (b.data) {
+		case "escalation": {
+			const inf = data.inflation;
+			if (!inf) return b;
+			const value = Math.min(.035, Math.max(.02, round(inf.breakeven10y + .005, 5e-4)));
+			return {
+				...b,
+				value,
+				label: `${pct(value)}/yr: the ${pct(inf.breakeven10y)} inflation markets expect over 10 years (FRED, ${day(inf.asOf)}) plus 0.5 points for load growth`
+			};
+		}
+		case "hubPrice":
+			if (!m) return b;
+			return {
+				...b,
+				value: m.atcPrice,
+				label: `$${m.atcPrice.toFixed(2)}/MWh: average day-ahead price at ${m.hub}, ${m.period}`
+			};
+		case "captureRate": {
+			const capture = inputs.technology === "solar" ? m?.solarCapture : m?.windCapture;
+			if (capture === void 0 || !m) return b;
+			return {
+				...b,
+				value: capture,
+				label: `${pct(capture)}: what ${inputs.technology} output earned at ${m.hub} against the average price, ${m.period} (grid prices × EIA-930 output)`
+			};
+		}
+		case "capacityFactor": {
+			const cf = expectedCapacityFactor(inputs, data);
+			if (!cf) return b;
+			return {
+				...b,
+				value: cf.value,
+				label: `${pct(cf.value)}: ${cf.label}`
+			};
+		}
+		case "discountRate": {
+			const c = data.costOfCapital;
+			if (!c) return b;
+			return {
+				...b,
+				value: c.totalMarket,
+				label: `${pct(c.totalMarket)}: average US cost of capital (Damodaran, ${day(c.asOf)})`
+			};
+		}
+	}
+	return b;
+}
 // src/engine/model.ts
 var HOURS_PER_YEAR = 8760;
 /**
@@ -102,14 +415,22 @@ function breakEvenEscalation(inputs) {
 function breakEvenStrike(inputs) {
 	return breakEven(inputs, "strikePrice", 0, 300);
 }
-var FACT_BY_KEY = Object.fromEntries([
+// src/engine/facts.ts
+/**
+* Every value a check can test. Inputs come straight from the form; derived
+* facts are computed from the model so checks can look at consequences
+* (e.g. "what hub price does this escalation imply in the final year?").
+*/
+var FACTS = [
 	{
 		key: "technology",
 		label: "Technology",
 		format: "text",
 		kind: "input",
 		help: "solar or wind",
-		options: ["solar", "wind"]
+		options: ["solar", "wind"],
+		core: true,
+		source: "Term sheet"
 	},
 	{
 		key: "market",
@@ -126,49 +447,67 @@ var FACT_BY_KEY = Object.fromEntries([
 			"NYISO",
 			"ISO-NE",
 			"Other"
-		]
+		],
+		core: true,
+		source: "Term sheet (project location and settlement hub)"
 	},
 	{
 		key: "capacityMW",
 		label: "Project size",
 		format: "mw",
 		kind: "input",
-		help: "Contracted capacity, MW AC"
+		help: "Contracted capacity, MW AC",
+		range: [.1, 5e3],
+		core: true,
+		source: "Term sheet: contracted share, not the whole project"
 	},
 	{
 		key: "capacityFactor",
 		label: "Capacity factor",
 		format: "pct",
 		kind: "input",
-		help: "Average output as a share of nameplate"
+		help: "Average output as a share of nameplate",
+		range: [.05, .7],
+		core: true,
+		source: "Independent energy yield assessment (P50); developer estimates run high"
 	},
 	{
 		key: "degradation",
 		label: "Output degradation",
 		format: "pct",
 		kind: "input",
-		help: "Annual loss of output"
+		help: "Annual loss of output",
+		range: [0, .05],
+		source: "Energy yield assessment or module warranty"
 	},
 	{
 		key: "termYears",
 		label: "Contract term",
 		format: "years",
 		kind: "input",
-		help: "VPPA length in years"
+		help: "VPPA length in years",
+		range: [1, 35],
+		core: true,
+		source: "Term sheet"
 	},
 	{
 		key: "strikePrice",
 		label: "Strike price",
 		format: "perMWh",
 		kind: "input",
-		help: "Fixed VPPA price, year 1"
+		help: "Fixed VPPA price, year 1",
+		range: [1, 300],
+		core: true,
+		source: "Developer’s firm offer, dated; compare with the LevelTen P25 index"
 	},
 	{
 		key: "strikeEscalation",
 		label: "Strike escalator",
 		format: "pct",
 		kind: "input",
-		help: "Annual increase in the strike price"
+		help: "Annual increase in the strike price",
+		range: [-.05, .1],
+		source: "Term sheet"
 	},
 	{
 		key: "settlementPoint",
@@ -176,105 +515,134 @@ var FACT_BY_KEY = Object.fromEntries([
 		format: "text",
 		kind: "input",
 		help: "hub or node",
-		options: ["hub", "node"]
+		options: ["hub", "node"],
+		source: "Term sheet"
 	},
 	{
 		key: "basis",
 		label: "Basis (node minus hub)",
 		format: "perMWh",
 		kind: "input",
-		help: "Applies only to node settlement"
+		help: "Applies only to node settlement",
+		range: [-100, 100],
+		source: "Node vs. hub price history from ISO data, weighted by the project’s output"
 	},
 	{
 		key: "transactionCost",
 		label: "Transaction costs",
 		format: "usd",
 		kind: "input",
-		help: "One-time legal, advisory, and procurement costs"
+		help: "One-time legal, advisory, and procurement costs",
+		range: [0, 1e8],
+		source: "Quotes from counsel and the procurement advisor"
 	},
 	{
 		key: "hubPrice",
 		label: "Hub price, year 1",
 		format: "perMWh",
 		kind: "input",
-		help: "Around-the-clock wholesale price"
+		help: "Around-the-clock wholesale price",
+		range: [1, 500],
+		core: true,
+		source: "Dated hub forward curve from a broker or the ISO; stale curves are common"
 	},
 	{
 		key: "wholesaleEscalation",
 		label: "Wholesale price escalation",
 		format: "pct",
 		kind: "input",
-		help: "Annual growth in wholesale prices"
+		help: "Annual growth in wholesale prices",
+		range: [-.05, .25],
+		core: true,
+		source: "Advisor’s long-run fundamentals forecast; cross-check with EIA’s Annual Energy Outlook. A single year’s inflation is not a forecast"
 	},
 	{
 		key: "captureRate",
 		label: "Capture rate",
 		format: "pct",
 		kind: "input",
-		help: "Project's generation-weighted price as a share of the around-the-clock price"
+		help: "Project's generation-weighted price as a share of the around-the-clock price",
+		range: [-1.5, 2.5],
+		source: "Shape or capture study for the project’s location"
 	},
 	{
 		key: "annualLoadMWh",
 		label: "Annual load",
 		format: "mwh",
 		kind: "input",
-		help: "Electricity use to be matched with RECs"
+		help: "Electricity use to be matched with RECs",
+		range: [1, 1e9],
+		core: true,
+		source: "Utility bills or the energy management system, for the sites the claim covers"
 	},
 	{
 		key: "recPrice",
 		label: "REC price, year 1",
 		format: "perMWh",
 		kind: "input",
-		help: "Unbundled REC price"
+		help: "Unbundled REC price",
+		range: [0, 100],
+		core: true,
+		source: "Broker quote for the exact product and vintage (national voluntary vs. state compliance)"
 	},
 	{
 		key: "recEscalation",
 		label: "REC price escalation",
 		format: "pct",
 		kind: "input",
-		help: "Annual growth in REC prices"
+		help: "Annual growth in REC prices",
+		range: [-.2, .5],
+		source: "Broker view; voluntary REC prices have no steady trend"
 	},
 	{
 		key: "discountRate",
 		label: "Discount rate",
 		format: "pct",
 		kind: "input",
-		help: "Rate used to discount future costs"
+		help: "Rate used to discount future costs",
+		range: [0, .3],
+		core: true,
+		source: "Treasury or finance (the company’s cost of capital)"
 	},
 	{
 		key: "accountingReviewed",
 		label: "Derivative accounting reviewed",
 		format: "bool",
 		kind: "input",
-		help: "ASC 815 / IFRS 9 treatment confirmed"
+		help: "ASC 815 / IFRS 9 treatment confirmed",
+		source: "Controller’s group"
 	},
 	{
 		key: "creditSupportReviewed",
 		label: "Credit support reviewed",
 		format: "bool",
 		kind: "input",
-		help: "Collateral or guarantee requirements known"
+		help: "Collateral or guarantee requirements known",
+		source: "Treasury and the term sheet"
 	},
 	{
 		key: "negativePriceTermsReviewed",
 		label: "Negative-price terms reviewed",
 		format: "bool",
 		kind: "input",
-		help: "Floor or curtailment clause checked"
+		help: "Floor or curtailment clause checked",
+		source: "The contract, reviewed by counsel"
 	},
 	{
 		key: "marketBoundaryConfirmed",
 		label: "REC market boundary confirmed",
 		format: "bool",
 		kind: "input",
-		help: "RECs come from the same market as the load"
+		help: "RECs come from the same market as the load",
+		source: "REC tracking system records (e.g. M-RETS, PJM-GATS, ERCOT)"
 	},
 	{
 		key: "scope2RevisionConsidered",
 		label: "Scope 2 revision considered",
 		format: "bool",
 		kind: "input",
-		help: "GHG Protocol Scope 2 proposals reviewed"
+		help: "GHG Protocol Scope 2 proposals reviewed",
+		source: "Sustainability reporting lead"
 	},
 	{
 		key: "year1GenerationMWh",
@@ -373,8 +741,121 @@ var FACT_BY_KEY = Object.fromEntries([
 		format: "year",
 		kind: "derived",
 		help: "0 when it never does"
+	},
+	{
+		key: "expectedInflation",
+		label: "Inflation markets expect (10 yr)",
+		format: "pct",
+		kind: "derived",
+		help: "10-year breakeven inflation, FRED"
+	},
+	{
+		key: "escalationOverInflation",
+		label: "Escalation above expected inflation",
+		format: "pct",
+		kind: "derived",
+		help: "Assumed wholesale escalation minus expected inflation"
+	},
+	{
+		key: "recentInflation",
+		label: "Inflation, last 12 months",
+		format: "pct",
+		kind: "derived",
+		help: "CPI, FRED"
+	},
+	{
+		key: "inflationPeak2022",
+		label: "Inflation peak in 2022",
+		format: "pct",
+		kind: "derived",
+		help: "Highest 12-month CPI change in 2022, FRED"
+	},
+	{
+		key: "treasury10y",
+		label: "10-year Treasury yield",
+		format: "pct",
+		kind: "derived",
+		help: "Risk-free rate, FRED"
+	},
+	{
+		key: "discountOverTreasury",
+		label: "Discount rate above Treasuries",
+		format: "pct",
+		kind: "derived",
+		help: "Discount rate minus the 10-year Treasury yield"
+	},
+	{
+		key: "marketCostOfCapital",
+		label: "Average US cost of capital",
+		format: "pct",
+		kind: "derived",
+		help: "Damodaran, all US companies"
+	},
+	{
+		key: "hasPriceData",
+		label: "Market price data available",
+		format: "bool",
+		kind: "derived",
+		help: "Hourly hub prices were fetched for this market"
+	},
+	{
+		key: "marketHubPrice",
+		label: "Market average price, past year",
+		format: "perMWh",
+		kind: "derived",
+		help: "Average day-ahead price at the market’s main hub"
+	},
+	{
+		key: "hubPriceVsMarket",
+		label: "Hub price vs. past year",
+		format: "multiple",
+		kind: "derived",
+		help: "Assumed year-1 hub price divided by the past year’s average"
+	},
+	{
+		key: "marketNegativeHourShare",
+		label: "Hours with negative prices",
+		format: "pct",
+		kind: "derived",
+		help: "Share of day-ahead hours below $0 at the hub, past year"
+	},
+	{
+		key: "marketCaptureRate",
+		label: "Capture rate in this market",
+		format: "pct",
+		kind: "derived",
+		help: "What solar or wind output earned vs. the average price, past year"
+	},
+	{
+		key: "expectedCaptureRate",
+		label: "Expected capture rate",
+		format: "pct",
+		kind: "derived",
+		help: "Measured in this market when available; otherwise a planning default (solar 85%, wind 90%)"
+	},
+	{
+		key: "captureRateVsMarket",
+		label: "Capture rate above market",
+		format: "pct",
+		kind: "derived",
+		help: "Assumed capture rate minus what the market delivered"
+	},
+	{
+		key: "expectedCapacityFactor",
+		label: "Expected capacity factor",
+		format: "pct",
+		kind: "derived",
+		help: "NREL PVWatts for the region (solar) or the US fleet average (EIA)"
+	},
+	{
+		key: "capacityFactorVsExpected",
+		label: "Capacity factor above expected",
+		format: "pct",
+		kind: "derived",
+		help: "Assumed capacity factor minus the expected one"
 	}
-].map((f) => [f.key, f]));
+];
+var FACT_BY_KEY = Object.fromEntries(FACTS.map((f) => [f.key, f]));
 function deriveFacts(inputs, result = runModel(inputs)) {
 	const plain = { ...inputs.diligence };
 	for (const [key, value] of Object.entries(inputs)) if (typeof value !== "object") plain[key] = value;
@@ -406,8 +887,36 @@ function deriveFacts(inputs, result = runModel(inputs)) {
 		escalationCushion: Math.abs(inputs.wholesaleEscalation - beEsc),
 		breakEvenStrike: breakEvenStrike(inputs),
 		lateValueShare: positive > 0 ? positiveLate / positive : 0,
-		firstPositiveYear
+		firstPositiveYear,
+		...dataFacts(inputs)
 	};
+}
+/**
+* Values that cannot be right, as opposed to values that are merely
+* aggressive (those are the checks' job). Usually a unit mix-up, such as a
+* capacity factor of 24 meant as 24%.
+*/
+function validateInputs(inputs) {
+	const problems = [];
+	for (const f of FACTS) {
+		if (f.kind !== "input" || !f.range) continue;
+		const value = inputs[f.key];
+		if (typeof value !== "number") continue;
+		const [lo, hi] = f.range;
+		if (!Number.isFinite(value) || value < lo || value > hi) problems.push({
+			key: f.key,
+			value,
+			range: f.range,
+			message: `${f.label} must be between ${fmtRange(f.format, lo)} and ${fmtRange(f.format, hi)}.`
+		});
+	}
+	return problems;
+}
+function fmtRange(format, v) {
+	if (format === "pct") return `${Math.round(v * 1e3) / 10}%`;
+	if (format === "perMWh") return `$${v}/MWh`;
+	if (format === "usd") return `$${v.toLocaleString("en-US")}`;
+	return v.toLocaleString("en-US");
 }
 // src/engine/format.ts
 function fmtUSD(value, opts = {}) {
@@ -487,7 +996,8 @@ var BUILT_IN_RULES = [
 		benchmark: {
 			input: "wholesaleEscalation",
 			value: .0275,
-			label: "2.75%/yr, the midpoint of the typical 2.5–3% range"
+			label: "2.75%/yr, the midpoint of the typical 2.5–3% range",
+			data: "escalation"
 		},
 		source: "Typical PPA modeling range; Federal Reserve 2% inflation target; EIA Annual Energy Outlook (roughly flat real wholesale prices)",
 		origin: "built-in",
@@ -509,9 +1019,36 @@ var BUILT_IN_RULES = [
 		benchmark: {
 			input: "wholesaleEscalation",
 			value: .0275,
-			label: "2.75%/yr"
+			label: "2.75%/yr",
+			data: "escalation"
 		},
 		source: "Typical PPA modeling range",
+		origin: "built-in"
+	},
+	{
+		id: "MKT-ESC-VS-INFLATION",
+		title: "Escalation well above expected inflation",
+		category: "Market prices",
+		severity: "warning",
+		when: [{
+			fact: "escalationOverInflation",
+			op: ">",
+			value: .01
+		}, {
+			fact: "wholesaleEscalation",
+			op: "<",
+			value: .0351
+		}],
+		message: "Wholesale prices rise {wholesaleEscalation} a year, more than a point above the {expectedInflation} inflation bond markets expect over the next decade.",
+		why: "Long-run power prices tend to track general inflation. Assuming they outrun it every year for the whole term is a forecast that needs its own support.",
+		ask: "What makes power prices rise faster than inflation for the entire term?",
+		benchmark: {
+			input: "wholesaleEscalation",
+			value: .0275,
+			label: "2.75%/yr",
+			data: "escalation"
+		},
+		source: "FRED 10-year breakeven inflation (T10YIE), refreshed weekly",
 		origin: "built-in"
 	},
 	{
@@ -535,31 +1072,6 @@ var BUILT_IN_RULES = [
 		title: "Solar valued at the full around-the-clock price",
 		category: "Market prices",
 		severity: "warning",
-		when: [{
-			fact: "technology",
-			op: "==",
-			value: "solar"
-		}, {
-			fact: "captureRate",
-			op: ">=",
-			value: .98
-		}],
-		message: "Solar output is valued at {captureRate} of the around-the-clock hub price.",
-		why: "Solar produces in midday hours, when prices are lowest, and the discount deepens as more solar is built. CAISO solar captured about 72% of the average price in 2021 and went negative in spring 2026. Pricing solar at 100% overstates the VPPA’s settlements every year.",
-		ask: "Is there a shape or capture-rate analysis for this project’s location?",
-		benchmark: {
-			input: "captureRate",
-			value: .85,
-			label: "85% (planning placeholder; replace with a market-specific shape study)"
-		},
-		source: "Modo Energy, CAISO solar capture (spring 2026); Enverus; IER analysis of CAISO 2021",
-		origin: "built-in"
-	},
-	{
-		id: "MKT-CAPTURE-CAISO",
-		title: "CAISO solar capture rate looks optimistic",
-		category: "Market prices",
-		severity: "warning",
 		when: [
 			{
 				fact: "technology",
@@ -567,25 +1079,52 @@ var BUILT_IN_RULES = [
 				value: "solar"
 			},
 			{
-				fact: "market",
-				op: "==",
-				value: "CAISO"
+				fact: "captureRate",
+				op: ">=",
+				value: .98
 			},
 			{
-				fact: "captureRate",
-				op: "between",
-				value: [.75, .979]
+				fact: "expectedCaptureRate",
+				op: "<",
+				value: .95
 			}
 		],
-		message: "A {captureRate} capture rate is high for solar in CAISO.",
-		why: "CAISO has the deepest midday price discount in the US. Solar capture rates there have fallen well below 75%, and were negative in spring 2026.",
-		ask: "What recent CAISO shape data supports this capture rate?",
+		message: "Solar output is valued at {captureRate} of the around-the-clock hub price; expect about {expectedCaptureRate} here.",
+		why: "Solar produces in midday hours, when prices are lowest, and the discount deepens as more solar is built. CAISO solar captured about 72% of the average price in 2021 and went negative in spring 2026. Pricing solar at 100% overstates the VPPA’s settlements every year.",
+		ask: "Is there a shape or capture-rate analysis for this project’s location?",
 		benchmark: {
 			input: "captureRate",
-			value: .65,
-			label: "65% (placeholder; verify with a current CAISO shape study)"
+			value: .85,
+			label: "85% (planning placeholder; replace with a market-specific shape study)",
+			data: "captureRate"
 		},
-		source: "Modo Energy, CAISO solar capture (spring 2026); Enverus",
+		source: "Modo Energy, CAISO solar capture (spring 2026); Enverus; IER analysis of CAISO 2021",
+		origin: "built-in"
+	},
+	{
+		id: "MKT-CAPTURE-VS-MARKET",
+		title: "Capture rate above what the market delivered",
+		category: "Market prices",
+		severity: "warning",
+		when: [{
+			fact: "captureRateVsMarket",
+			op: ">",
+			value: .1
+		}, {
+			fact: "captureRate",
+			op: "<",
+			value: .98
+		}],
+		message: "A {captureRate} capture rate is well above the {marketCaptureRate} that {technology} output actually earned in this market over the past year.",
+		why: "Capture rates move with how much solar and wind a market already has. Last year’s market-wide figure is the best public starting point; a project-specific shape study can justify a different number.",
+		ask: "What shape or capture study supports a higher capture rate than the market delivered?",
+		benchmark: {
+			input: "captureRate",
+			value: .85,
+			label: "market capture rate",
+			data: "captureRate"
+		},
+		source: "Grid operator day-ahead hub prices × EIA-930 hourly output, refreshed weekly",
 		origin: "built-in"
 	},
 	{
@@ -593,22 +1132,31 @@ var BUILT_IN_RULES = [
 		title: "Wind valued at the full around-the-clock price",
 		category: "Market prices",
 		severity: "info",
-		when: [{
-			fact: "technology",
-			op: "==",
-			value: "wind"
-		}, {
-			fact: "captureRate",
-			op: ">=",
-			value: .98
-		}],
-		message: "Wind output is valued at {captureRate} of the around-the-clock hub price.",
+		when: [
+			{
+				fact: "technology",
+				op: "==",
+				value: "wind"
+			},
+			{
+				fact: "captureRate",
+				op: ">=",
+				value: .98
+			},
+			{
+				fact: "expectedCaptureRate",
+				op: "<",
+				value: .95
+			}
+		],
+		message: "Wind output is valued at {captureRate} of the around-the-clock hub price; expect about {expectedCaptureRate} here.",
 		why: "Wind often blows hardest at night and in shoulder seasons, when prices are lower, so its capture rate is usually below 100%.",
 		ask: "Is there a shape analysis for this wind project?",
 		benchmark: {
 			input: "captureRate",
 			value: .9,
-			label: "90% (placeholder)"
+			label: "90% (placeholder)",
+			data: "captureRate"
 		},
 		source: "General market practice",
 		origin: "built-in"
@@ -655,6 +1203,29 @@ var BUILT_IN_RULES = [
 		origin: "built-in"
 	},
 	{
+		id: "MKT-HUB-VS-MARKET",
+		title: "Year-1 hub price far from the past year",
+		category: "Market prices",
+		severity: "warning",
+		when: [{
+			fact: "hubPriceVsMarket",
+			op: "outside",
+			value: [.8, 1.25]
+		}],
+		message: "A year-1 hub price of {hubPrice} is {hubPriceVsMarket} the {marketHubPrice} average day-ahead price at this market’s main hub over the past year.",
+		why: "Next year’s prices can differ from last year’s, but a gap of more than 20–25% usually means an old curve, an on-peak price used as an around-the-clock one, or the wrong hub.",
+		ask: "Which forward curve and hub is this price from, and is it around-the-clock or on-peak?",
+		benchmark: {
+			input: "hubPrice",
+			value: 45,
+			label: "past-year average",
+			data: "hubPrice",
+			auto: false
+		},
+		source: "Grid operator day-ahead hub prices, refreshed weekly",
+		origin: "built-in"
+	},
+	{
 		id: "PRJ-CF-SOLAR",
 		title: "Solar capacity factor outside the usual range",
 		category: "Project output",
@@ -674,7 +1245,8 @@ var BUILT_IN_RULES = [
 		benchmark: {
 			input: "capacityFactor",
 			value: .24,
-			label: "24%, the US utility-scale average"
+			label: "24%, the US utility-scale average",
+			data: "capacityFactor"
 		},
 		source: "EIA Electric Power Monthly, capacity factors for utility-scale solar",
 		origin: "built-in"
@@ -699,9 +1271,32 @@ var BUILT_IN_RULES = [
 		benchmark: {
 			input: "capacityFactor",
 			value: .36,
-			label: "36%"
+			label: "36%",
+			data: "capacityFactor"
 		},
 		source: "EIA Electric Power Monthly; LBNL Land-Based Wind Market Report",
+		origin: "built-in"
+	},
+	{
+		id: "PRJ-CF-VS-EXPECTED",
+		title: "Capacity factor above what is expected here",
+		category: "Project output",
+		severity: "warning",
+		when: [{
+			fact: "capacityFactorVsExpected",
+			op: ">",
+			value: .04
+		}],
+		message: "A {capacityFactor} capacity factor is more than 4 points above the {expectedCapacityFactor} expected for {technology} in this market.",
+		why: "Higher output means more MWh settling against the strike every year. Developer estimates often run high; an independent P50 assessment is the reliable number.",
+		ask: "Is this from an independent energy yield assessment (P50)?",
+		benchmark: {
+			input: "capacityFactor",
+			value: .24,
+			label: "expected capacity factor",
+			data: "capacityFactor"
+		},
+		source: "NREL PVWatts for the region (solar); EIA fleet average (wind); refreshed weekly",
 		origin: "built-in"
 	},
 	{
@@ -836,11 +1431,35 @@ var BUILT_IN_RULES = [
 			fact: "negativePriceTermsReviewed",
 			op: "==",
 			value: false
+		}, {
+			fact: "hasPriceData",
+			op: "==",
+			value: false
 		}],
 		message: "Nobody has confirmed how the VPPA settles when prices go negative.",
 		why: "In markets with frequent negative prices (ERCOT, SPP, CAISO), a VPPA with no price floor or curtailment clause can make the buyer pay the strike plus the negative price. This model uses annual averages and cannot show that cost.",
 		ask: "Does the contract include a floor at $0 or a curtailment right during negative prices?",
 		source: "General market practice",
+		origin: "built-in"
+	},
+	{
+		id: "CTR-NEGATIVE-PRICES-FREQUENT",
+		title: "Frequent negative prices, terms not reviewed",
+		category: "Contract terms",
+		severity: "warning",
+		when: [{
+			fact: "marketNegativeHourShare",
+			op: ">",
+			value: .02
+		}, {
+			fact: "negativePriceTermsReviewed",
+			op: "==",
+			value: false
+		}],
+		message: "Day-ahead prices at this market’s hub were negative in {marketNegativeHourShare} of hours over the past year, and nobody has confirmed how the VPPA settles then.",
+		why: "In those hours a VPPA with no price floor makes the buyer pay the strike plus the negative price. This model uses annual averages and cannot show that cost.",
+		ask: "Does the contract include a floor at $0 or a curtailment right during negative prices?",
+		source: "Grid operator day-ahead hub prices, refreshed weekly",
 		origin: "built-in"
 	},
 	{
@@ -859,9 +1478,32 @@ var BUILT_IN_RULES = [
 		benchmark: {
 			input: "discountRate",
 			value: .08,
-			label: "8%"
+			label: "8%",
+			data: "discountRate"
 		},
 		source: "General corporate finance practice",
+		origin: "built-in"
+	},
+	{
+		id: "FIN-DISCOUNT-BELOW-TREASURY",
+		title: "Discount rate below the risk-free rate",
+		category: "Finance & RECs",
+		severity: "warning",
+		when: [{
+			fact: "discountOverTreasury",
+			op: "<",
+			value: 0
+		}],
+		message: "A {discountRate} discount rate is below the {treasury10y} yield on 10-year US Treasuries.",
+		why: "A company’s cost of capital is almost always above the risk-free rate. Discounting below it overweights distant years, where VPPA value usually sits.",
+		ask: "Did finance supply this rate, and is it current?",
+		benchmark: {
+			input: "discountRate",
+			value: .08,
+			label: "8%",
+			data: "discountRate"
+		},
+		source: "FRED 10-year Treasury yield (DGS10); Damodaran cost of capital; refreshed weekly",
 		origin: "built-in"
 	},
 	{
@@ -1110,8 +1752,12 @@ function activeRules(playbook) {
 function runPreflight(inputs, rules, base = runModel(inputs)) {
 	const facts = deriveFacts(inputs, base);
 	const findings = [];
-	for (const rule of rules) {
-		if (!ruleFires(rule, facts)) continue;
+	for (const original of rules) {
+		if (!ruleFires(original, facts)) continue;
+		const rule = original.benchmark ? {
+			...original,
+			benchmark: resolveBenchmark(original.benchmark, inputs)
+		} : original;
 		const finding = {
 			rule,
 			message: renderTemplate(rule.message, facts)
@@ -1268,7 +1914,9 @@ function advise(inputs, rules, opts = {}) {
 	const submitted = runModel(inputs);
 	const findings = runPreflight(inputs, rules, submitted);
 	const corrections = [];
+	const superseded = [];
 	const kept = [];
+	const correctedKeys = /* @__PURE__ */ new Set();
 	let correctedInputs = inputs;
 	for (const f of findings) {
 		const d = decisionFor(review, f.rule.id).disposition;
@@ -1276,22 +1924,30 @@ function advise(inputs, rules, opts = {}) {
 			kept.push(f);
 			continue;
 		}
-		const auto = f.rule.severity !== "info" || d === "use-benchmark";
+		const auto = f.rule.severity !== "info" && f.rule.benchmark?.auto !== false || d === "use-benchmark";
 		if (f.rule.benchmark && auto) {
+			if (correctedKeys.has(f.rule.benchmark.input)) {
+				superseded.push(f);
+				continue;
+			}
+			correctedKeys.add(f.rule.benchmark.input);
 			correctedInputs = withInput(correctedInputs, f.rule.benchmark.input, f.rule.benchmark.value);
 			corrections.push(f);
 		}
 	}
+	const problems = validateInputs(inputs);
 	const corrected = runModel(correctedInputs);
 	const keptIds = new Set(kept.map((f) => f.rule.id));
 	const correctedIds = new Set(corrections.map((f) => f.rule.id));
 	const questions = findings.filter((f) => f.rule.severity !== "info" && !keptIds.has(f.rule.id) && (f.rule.ask || !correctedIds.has(f.rule.id)));
-	const notes = findings.filter((f) => f.rule.severity === "info" && !correctedIds.has(f.rule.id));
+	const notes = findings.filter((f) => (f.rule.severity === "info" || f.rule.benchmark?.auto === false) && !correctedIds.has(f.rule.id) && !keptIds.has(f.rule.id));
 	const discountedMWh = corrected.rows.reduce((sum, r) => sum + r.generationMWh * r.discountFactor, 0);
 	const premiumPerMWh = discountedMWh > 0 ? -corrected.npvAdvantage / discountedMWh : NaN;
 	const base = corrected.npvAdvantage;
 	const flips = sensitivity(correctedInputs).filter((s) => Math.sign(base + s.lowDelta) !== Math.sign(base) || Math.sign(base + s.highDelta) !== Math.sign(base));
-	const confidence = flips.length === 0 ? "high" : flips.length <= 2 ? "medium" : "low";
+	const assumedCore = [.../* @__PURE__ */ new Set([...opts.assumed ?? [], ...(opts.rejected ?? []).map((r) => r.key)])].filter((k) => FACT_BY_KEY[k]?.core);
+	let confidence = problems.length ? "low" : flips.length === 0 ? "high" : flips.length <= 2 ? "medium" : "low";
+	if (confidence === "high" && assumedCore.length) confidence = "medium";
 	const beStrike = breakEvenStrike(correctedInputs);
 	const beEsc = breakEvenEscalation(correctedInputs);
 	const reversed = submitted.recommendation !== corrected.recommendation;
@@ -1320,6 +1976,10 @@ function advise(inputs, rules, opts = {}) {
 		correctedInputs,
 		corrected,
 		corrections,
+		superseded,
+		problems,
+		rejected: opts.rejected ?? [],
+		assumedCore,
 		kept,
 		questions,
 		notes,
@@ -1339,6 +1999,11 @@ var CONFIDENCE_TEXT = {
 	low: "Low: several assumptions could reverse this. Firm them up before deciding."
 };
 function confidenceText(a) {
+	if (a.problems.length) return "Low: some inputs are outside their possible range, so the numbers can’t be trusted yet. Fix them first.";
+	if (!a.flips.length && a.assumedCore.length) {
+		const names = a.assumedCore.map((k) => FACT_BY_KEY[k]?.label ?? k).join("; ");
+		return `Medium: no single assumption reverses this, but ${a.assumedCore.length === 1 ? "one needed input was" : `${a.assumedCore.length} needed inputs were`} filled in (${names}). Firm ${a.assumedCore.length === 1 ? "it" : "them"} up to raise confidence.`;
+	}
 	if (!a.flips.length) return CONFIDENCE_TEXT.high;
 	return `${CONFIDENCE_TEXT[a.confidence]} Watch: ${a.flips.map((s) => s.label.toLowerCase()).join(", ")}.`;
 }
@@ -1368,6 +2033,12 @@ function renderAdvice(a) {
 	}
 	L.push(`**Confidence:** ${confidenceText(a)}`);
 	L.push("");
+	if (a.problems.length) {
+		L.push("## Fix these inputs first");
+		L.push("");
+		for (const p of a.problems) L.push(`- ${p.message} The model has ${formatFact(p.key, p.value)}; check the units.`);
+		L.push("");
+	}
 	L.push("| | As submitted | Corrected |");
 	L.push("|---|---|---|");
 	L.push(`| Lower-cost option | ${a.submitted.recommendation} | ${a.corrected.recommendation} |`);
@@ -1387,6 +2058,7 @@ function renderAdvice(a) {
 		}
 		L.push("");
 		for (const f of a.corrections) L.push(`- **${f.rule.title}.** ${f.message} ${f.rule.why}${f.rule.source ? ` _Source: ${f.rule.source}._` : ""}`);
+		for (const f of a.superseded) L.push(`- _${f.rule.title} suggested ${formatFact(f.rule.benchmark.input, f.rule.benchmark.value)}; the more serious check above takes precedence._`);
 		L.push("");
 	}
 	if (a.kept.length) {
@@ -1417,13 +2089,11 @@ function renderAdvice(a) {
 		}
 		L.push("");
 	}
-	if (a.assumed.length) {
-		L.push("## Not in the inputs, so assumed");
+	const firmUp = firmUpList(a);
+	if (firmUp.length) {
+		L.push("## Filled in for you");
 		L.push("");
-		for (const k of a.assumed) {
-			const key = k;
-			L.push(`- ${FACT_BY_KEY[k]?.label ?? k}: ${formatFact(k, a.inputs[key])}`);
-		}
+		for (const item of firmUp) L.push(`- ${item}`);
 		L.push("");
 	}
 	L.push("## Not in the numbers");
@@ -1468,7 +2138,10 @@ function adviceSummary(a) {
 		breakEvenStrike: Number.isFinite(a.breakEvenStrike) ? Math.round(a.breakEvenStrike * 100) / 100 : null,
 		breakEvenEscalation: Number.isFinite(a.breakEvenEscalation) ? Math.round(a.breakEvenEscalation * 1e4) / 1e4 : null,
 		premiumPerMWh: Number.isFinite(a.premiumPerMWh) ? Math.round(a.premiumPerMWh * 100) / 100 : null,
+		inputProblems: a.problems.map((p) => p.message),
+		rejected: a.rejected,
 		corrections: a.corrections.map(brief),
+		superseded: a.superseded.map(brief),
 		questions: a.questions.map(brief),
 		notes: a.notes.map(brief),
 		changeConditions: changeConditions(a),
@@ -1476,6 +2149,21 @@ function adviceSummary(a) {
 		inputs: a.inputs,
 		correctedInputs: a.correctedInputs
 	};
+}
+/** Assumed or rejected inputs, each with where to get a reliable number. */
+function firmUpList(a) {
+	const out = [];
+	for (const r of a.rejected) {
+		const def = FACT_BY_KEY[r.key];
+		out.push(`${def?.label ?? r.key}: the source gave ${JSON.stringify(r.given)}, which is ${r.reason}, so ${formatFact(r.key, a.inputs[r.key])} was used.${def?.source ? ` Get it from: ${def.source}.` : ""}`);
+	}
+	const rejectedKeys = new Set(a.rejected.map((r) => r.key));
+	for (const k of a.assumed) {
+		if (rejectedKeys.has(k)) continue;
+		const def = FACT_BY_KEY[k];
+		out.push(`${def?.label ?? k}: ${formatFact(k, a.inputs[k])}.${def?.source ? ` Get it from: ${def.source}.` : ""}`);
+	}
+	return out;
 }
 // src/engine/inputs.ts
 /** For percentage fields given without a % sign: values above this are read as percents. */
@@ -1531,18 +2219,7 @@ function defaultsFor(technology) {
 	};
 }
 /** Defaults that stand in for a missing number rather than a missing refinement. */
-var ASSUMED_WHEN_MISSING = /* @__PURE__ */ new Set([
-	"capacityMW",
-	"capacityFactor",
-	"termYears",
-	"strikePrice",
-	"hubPrice",
-	"wholesaleEscalation",
-	"recPrice",
-	"recEscalation",
-	"discountRate",
-	"annualLoadMWh"
-]);
+var ASSUMED_WHEN_MISSING = /* @__PURE__ */ new Set([...FACTS.filter((f) => f.core).map((f) => f.key), "recEscalation"]);
 function toNumber(v) {
 	if (typeof v === "number") return Number.isFinite(v) ? v : void 0;
 	if (typeof v === "string" && v.trim()) {
@@ -1585,17 +2262,29 @@ function completeInputs(partial) {
 		"annualGenerationMWh"
 	]);
 	const ignored = Object.keys(partial).filter((k) => !known.has(k));
+	const rejected = [];
+	if (!/^(solar|wind)$/i.test(String(src.technology ?? "").trim())) assumed.push("technology");
 	if (typeof src.scenarioName === "string" && src.scenarioName.trim()) inputs.scenarioName = src.scenarioName.trim();
 	if (typeof src.assumptionOwner === "string") inputs.assumptionOwner = src.assumptionOwner.trim();
 	const market = MARKETS.find((m) => m.toLowerCase() === String(src.market ?? "").toLowerCase().replace(/\s+/g, ""));
 	if (market) inputs.market = market;
 	else if (String(src.market ?? "").toLowerCase().replace(/[\s-]/g, "") === "isone") inputs.market = "ISO-NE";
+	else assumed.push("market");
 	if (String(src.settlementPoint ?? "").toLowerCase().startsWith("node")) inputs.settlementPoint = "node";
 	for (const key of Object.keys(base)) {
 		if (FACT_BY_KEY[key]?.format === "text" || key === "scenarioName" || key === "assumptionOwner") continue;
 		const n = toNumber(src[key]);
 		const percentSign = typeof src[key] === "string" && src[key].includes("%");
-		if (n !== void 0) inputs[key] = asFraction(key, n, percentSign);
+		const value = n === void 0 ? void 0 : asFraction(key, n, percentSign);
+		const range = FACT_BY_KEY[key]?.range;
+		if (value !== void 0 && range && (value < range[0] || value > range[1])) {
+			rejected.push({
+				key,
+				given: src[key],
+				reason: `outside the possible range for ${FACT_BY_KEY[key].label.toLowerCase()}`
+			});
+			if (ASSUMED_WHEN_MISSING.has(key)) assumed.push(key);
+		} else if (value !== void 0) inputs[key] = value;
 		else if (ASSUMED_WHEN_MISSING.has(key)) assumed.push(key);
 	}
 	const generation = toNumber(src.annualGenerationMWh);
@@ -1621,7 +2310,8 @@ function completeInputs(partial) {
 	return {
 		inputs,
 		assumed,
-		ignored
+		ignored,
+		rejected
 	};
 }
 // scripts/preflight-cli.ts
@@ -1654,8 +2344,11 @@ if (teamFile) try {
 } catch (e) {
 	fail(`Could not read team checks from ${teamFile}: ${e.message}`);
 }
-var { inputs, assumed, ignored } = completeInputs(raw);
-var advice = advise(inputs, activeRules(playbook), { assumed });
+var { inputs, assumed, ignored, rejected } = completeInputs(raw);
+var advice = advise(inputs, activeRules(playbook), {
+	assumed,
+	rejected
+});
 if (json) process.stdout.write(`${JSON.stringify({
 	...adviceSummary(advice),
 	ignoredKeys: ignored,

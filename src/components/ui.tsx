@@ -50,6 +50,8 @@ interface NumberFieldProps {
   step?: number;
   help?: string;
   flag?: Severity;
+  /** Shown when the value is outside its possible range. */
+  error?: string;
 }
 
 function shown(value: number, percent?: boolean): string {
@@ -59,7 +61,7 @@ function shown(value: number, percent?: boolean): string {
 }
 
 /** A numeric input that keeps what the person is typing until it parses. */
-export function NumberField({ id, label, value, onChange, percent, prefix, suffix, step, help, flag }: NumberFieldProps) {
+export function NumberField({ id, label, value, onChange, percent, prefix, suffix, step, help, flag, error }: NumberFieldProps) {
   const [text, setText] = useState(shown(value, percent));
   const focused = useRef(false);
 
@@ -68,7 +70,7 @@ export function NumberField({ id, label, value, onChange, percent, prefix, suffi
   }, [value, percent]);
 
   return (
-    <label className="field" data-flag={flag} htmlFor={id}>
+    <label className="field" data-flag={error ? 'critical' : flag} htmlFor={id}>
       <span className="field-label">
         {label}
         {flag ? <span className="flag-dot" data-sev={flag} title={`Flagged: ${flag}`} /> : null}
@@ -78,6 +80,8 @@ export function NumberField({ id, label, value, onChange, percent, prefix, suffi
         <input
           id={id}
           className="input"
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? `${id}-error` : undefined}
           inputMode="decimal"
           value={text}
           step={step}
@@ -94,7 +98,13 @@ export function NumberField({ id, label, value, onChange, percent, prefix, suffi
         />
         {suffix ? <span className="affix">{suffix}</span> : null}
       </span>
-      {help ? <span className="field-help">{help}</span> : null}
+      {error ? (
+        <span className="field-error" id={`${id}-error`}>
+          {error}
+        </span>
+      ) : help ? (
+        <span className="field-help">{help}</span>
+      ) : null}
     </label>
   );
 }

@@ -1,0 +1,204 @@
+{
+  "inflation": {
+    "breakeven10y": 0.0235,
+    "forward5y5y": 0.0231,
+    "cpiYoY": 0.0402,
+    "cpiYoYMonth": "2026-09",
+    "cpiPeak2022": 0.0898,
+    "asOf": "2026-10-28",
+    "source": "FRED: 10-year breakeven inflation (T10YIE), 5-year forward inflation expectation (T5YIFR), CPI (CPIAUCSL)"
+  },
+  "rates": {
+    "treasury10y": 0.0516,
+    "baaCorporate": 0.0661,
+    "asOf": "2026-10-28",
+    "source": "FRED: 10-year Treasury yield (DGS10), Moody's Baa corporate bond yield (DBAA)"
+  },
+  "costOfCapital": {
+    "totalMarket": 0.0696,
+    "p10": 0.0521,
+    "median": 0.0709,
+    "p90": 0.0848,
+    "industries": 94,
+    "asOf": "2026-01-05",
+    "source": "Aswath Damodaran, NYU Stern: cost of capital by industry, US companies"
+  },
+  "capacityFactors": {
+    "solar": 0.2398,
+    "wind": 0.3431,
+    "period": "2025-09 to 2026-08",
+    "asOf": "2026-08",
+    "source": "EIA Electric Power Monthly, Table 6.07.B (utility-scale fleet, trailing 12 months)"
+  },
+  "onPeak": {
+    "CAISO": {
+      "hub": "SP15 EZ Gen DA LMP Peak",
+      "onPeakPrice": 27.91,
+      "days": 220
+    },
+    "PJM": {
+      "hub": "PJM WH Real Time Peak",
+      "onPeakPrice": 91.08,
+      "days": 226
+    },
+    "MISO": {
+      "hub": "Indiana Hub RT Peak",
+      "onPeakPrice": 92.31,
+      "days": 46
+    },
+    "ISO-NE": {
+      "hub": "Nepool MH DA LMP Peak",
+      "onPeakPrice": 80.41,
+      "days": 204
+    }
+  },
+  "markets": {
+    "ERCOT": {
+      "hub": "HB_NORTH",
+      "atcPrice": 34.8,
+      "negativeHourShare": 0.0072,
+      "hours": 8734,
+      "period": "2025-10-26 to 2026-10-24",
+      "solarCapture": 0.689,
+      "windCapture": 0.8859
+    },
+    "CAISO": {
+      "hub": "TH_SP15_GEN-APND",
+      "atcPrice": 24.73,
+      "negativeHourShare": 0.1636,
+      "hours": 648,
+      "period": "2025-10-26 to 2026-10-26",
+      "solarCapture": 0.4333,
+      "windCapture": 0.9953
+    },
+    "MISO": {
+      "hub": "INDIANA.HUB",
+      "atcPrice": 39.01,
+      "negativeHourShare": 0.0,
+      "hours": 648,
+      "period": "2025-10-26 to 2026-10-26",
+      "solarCapture": 0.8705,
+      "windCapture": 1.0077
+    },
+    "SPP": {
+      "hub": "SPPSOUTH_HUB",
+      "atcPrice": 22.83,
+      "negativeHourShare": 0.1667,
+      "hours": 648,
+      "period": "2025-10-26 to 2026-10-26",
+      "solarCapture": 1.6109,
+      "windCapture": 0.7264
+    },
+    "NYISO": {
+      "hub": "CENTRL",
+      "atcPrice": 58.2,
+      "negativeHourShare": 0.0,
+      "hours": 648,
+      "period": "2025-10-26 to 2026-10-26",
+      "windCapture": 0.9716
+    },
+    "ISO-NE": {
+      "hub": ".H.INTERNAL_HUB",
+      "atcPrice": 66.2,
+      "negativeHourShare": 0.0,
+      "hours": 648,
+      "period": "2025-10-26 to 2026-10-26",
+      "solarCapture": 0.7481,
+      "windCapture": 0.9834
+    }
+  },
+  "window": {
+    "start": "2025-10-26",
+    "end": "2026-10-25",
+    "sampledEveryDays": 14
+  },
+  "generatedAt": "2026-10-29T21:02:44Z",
+  "sources": [
+    {
+      "id": "fred-inflation",
+      "name": "Inflation expectations and CPI (FRED)",
+      "url": "https://fred.stlouisfed.org/series/T10YIE",
+      "status": "ok"
+    },
+    {
+      "id": "fred-rates",
+      "name": "Treasury and corporate bond yields (FRED)",
+      "url": "https://fred.stlouisfed.org/series/DGS10",
+      "status": "ok"
+    },
+    {
+      "id": "damodaran",
+      "name": "Cost of capital by industry (Damodaran, NYU Stern)",
+      "url": "https://pages.stern.nyu.edu/~adamodar/",
+      "status": "ok"
+    },
+    {
+      "id": "eia-capacity-factors",
+      "name": "Fleet capacity factors (EIA Electric Power Monthly)",
+      "url": "https://www.eia.gov/electricity/monthly/",
+      "status": "ok"
+    },
+    {
+      "id": "eia-ice",
+      "name": "On-peak hub prices (EIA wholesale market data)",
+      "url": "https://www.eia.gov/electricity/wholesale/",
+      "status": "ok"
+    },
+    {
+      "id": "nrel-pvwatts",
+      "name": "Expected solar output by region (NREL PVWatts)",
+      "url": "https://pvwatts.nrel.gov/",
+      "status": "failed",
+      "detail": "HTTPSConnectionPool(host='developer.nrel.gov', port=443): Max retries exceeded with url: /api/pvwatts/v8.json?api_key=DEMO_KEY&lat=31.99&lon=-102.08&system_capacity=1000&module_type=0&losses=14&array_type=2&tilt=0&azimuth=180&dc_ac_ratio=1."
+    },
+    {
+      "id": "eia-930",
+      "name": "Hourly solar and wind output by grid operator (EIA-930)",
+      "url": "https://www.eia.gov/electricity/gridmonitor/",
+      "status": "ok"
+    },
+    {
+      "id": "prices-ercot",
+      "name": "Hourly day-ahead prices, ERCOT (HB_NORTH)",
+      "url": "",
+      "status": "ok"
+    },
+    {
+      "id": "prices-caiso",
+      "name": "Hourly day-ahead prices, CAISO (TH_SP15_GEN-APND)",
+      "url": "",
+      "status": "ok"
+    },
+    {
+      "id": "prices-pjm",
+      "name": "Hourly day-ahead prices, PJM (WESTERN HUB)",
+      "url": "",
+      "status": "skipped",
+      "detail": "skipped: set PJM_API_KEY (free from PJM Data Miner) to add hourly PJM prices"
+    },
+    {
+      "id": "prices-miso",
+      "name": "Hourly day-ahead prices, MISO (INDIANA.HUB)",
+      "url": "",
+      "status": "ok"
+    },
+    {
+      "id": "prices-spp",
+      "name": "Hourly day-ahead prices, SPP (SPPSOUTH_HUB)",
+      "url": "",
+      "status": "ok"
+    },
+    {
+      "id": "prices-nyiso",
+      "name": "Hourly day-ahead prices, NYISO (CENTRL)",
+      "url": "",
+      "status": "ok"
+    },
+    {
+      "id": "prices-iso-ne",
+      "name": "Hourly day-ahead prices, ISO-NE (.H.INTERNAL_HUB)",
+      "url": "",
+      "status": "ok"
+    }
+  ]
+}

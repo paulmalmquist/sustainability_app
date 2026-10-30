@@ -23,6 +23,8 @@ const SOURCES: { label: string; href?: string }[] = [
   { label: 'EIA Electric Power Monthly (capacity factors); NREL photovoltaic degradation studies; RE100 technical criteria' },
 ];
 
+import { MarketDataPanel } from './MarketDataPanel.tsx';
+
 export function HowItWorks({ checkCount }: { checkCount: number }) {
   return (
     <div className="how">
@@ -90,14 +92,16 @@ export function HowItWorks({ checkCount }: { checkCount: number }) {
         </div>
       </section>
 
+      <MarketDataPanel />
+
       <section className="panel">
         <div className="panel-head">
-          <h2>Where the benchmarks come from</h2>
+          <h2>Other references</h2>
         </div>
         <div className="panel-body">
           <p className="small">
-            Benchmarks are starting points with dates, not facts about your deal. Check them against your advisor’s data,
-            and recalibrate a check when the market moves.
+            Used for checks without a free data feed (strike and REC prices, degradation, Scope 2). Benchmarks are starting
+            points with dates, not facts about your deal. Check them against your advisor’s data.
           </p>
           <ul className="sources">
             {SOURCES.map((s) => (

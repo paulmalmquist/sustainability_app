@@ -12,13 +12,20 @@ The advice comes from a playbook of checks written by experienced reviewers. Whe
 2. **Paste into the app.** On the Advice tab, paste the assumption rows from Excel ("Wholesale price inflation · 7.5%") and choose *Read assumptions*. Anything missing is filled with a benchmark and listed.
 3. **Command line.** `node skill/vppa-rec-assumption-review/scripts/preflight.mjs inputs.json` prints the advice as Markdown. Add `--json` for structured output and `--checks team-checks.json` for your team's checks.
 
-For the 7.5% example, the advice reads:
+For the 7.5% example, the advice reads (figures shift a little each week as the market data refreshes):
 
-> **Buy unbundled RECs. At $63.00/MWh, this VPPA costs $14.4M more over 15 years.**
-> The model as submitted says the opposite (the VPPA by $25.1M), mainly because of one assumption: wholesale price escalation far above long-run norms. The VPPA only beats RECs at a strike below $52.72/MWh. […]
+> **Buy unbundled RECs. At $63.00/MWh, this VPPA costs $14.0M more over 15 years.**
+> The model as submitted says the opposite (the VPPA by $25.1M), mainly because of one assumption: wholesale price escalation far above long-run norms. The VPPA only beats RECs at a strike below $53.00/MWh. […]
 > **Confidence:** High: no single assumption, moved across its plausible range, reverses this.
 
 The **Detailed review** tab is still there for anyone who wants to see each flag, decide it by hand, and sign off. Decisions made there carry into the advice.
+
+### How the advice treats inputs
+
+- **Every input has a valid range.** A value outside it, such as a capacity factor of 2600, is treated as an error (usually a unit mix-up), not as an aggressive assumption. It is replaced and reported, and the advice's confidence drops until it is fixed.
+- **Every input has a named source.** For each value that was filled in or rejected, the advice says where a reliable number comes from: an independent energy yield assessment for capacity factor, a dated forward curve for the hub price, a broker quote for the exact REC product, and so on.
+- **A minimal checklist.** Eleven inputs are needed for useful advice (marked in the skill's input table). If any of them was filled in, confidence is capped at medium.
+- **Clear priority between checks.** When two checks suggest different values for the same input, the more serious one wins (critical over warning, then the larger effect), and the other is noted.
 
 ## Why it exists
 
@@ -54,6 +61,38 @@ Click **Load the 7.5% example** (it loads by default). An 80 MW solar VPPA in PJ
 4. **Pushback memo.** A draft note to the assumption owner covering each flagged value, the benchmark and its source, the dollar impact, and the question to ask.
 5. **Teach.** The Playbook tab lists every check. *Add a check* builds a new one from any input or calculated value (e.g. "strike escalator is above 2%"), with a severity, a benchmark, the reason, and the story of where it was caught. You can also recalibrate the built-in thresholds when the market moves.
 6. **Second look.** Asks Claude for issues the checks didn't cover. In a claude.ai artifact it calls Claude directly. Anywhere else it gives you a prompt to paste into Claude and reads the reply back. Suggestions are marked unverified, and a person decides which ones to turn into checks.
+
+## Live market data
+
+A weekly job (`.github/workflows/refresh-data.yml`, Mondays) runs `scripts/data/refresh.py`, which pulls public data into `src/data/market-data.json`. It then rebuilds the skill, runs the tests, commits, and republishes the site. The checks compare every model against the result:
+
+| Data | Source | Used for |
+|---|---|---|
+| Inflation expected over 10 years; CPI, including the 2022 peak | FRED (St. Louis Fed): T10YIE, T5YIFR, CPIAUCSL | Wholesale escalation benchmark; flags escalation more than a point above expected inflation |
+| 10-year Treasury and Baa corporate bond yields | FRED: DGS10, DBAA | Flags a discount rate below the risk-free rate |
+| Cost of capital by industry | Damodaran, NYU Stern | Discount rate benchmark |
+| Fleet capacity factors, trailing 12 months | EIA Electric Power Monthly, Table 6.07.B | Capacity factor benchmark (wind; solar fallback) |
+| Expected solar output at a site in each market | NREL PVWatts | Solar capacity factor benchmark by market |
+| Hourly day-ahead hub prices: ERCOT, CAISO, MISO, SPP, NYISO, ISO-NE (PJM with a key) | Grid operators, via [gridstatus](https://github.com/gridstatus/gridstatus) and their public files | Hub price check, negative-price frequency |
+| Hourly solar and wind output by grid operator | EIA-930 | Capture rates (prices weighted by output) |
+| On-peak hub prices | EIA wholesale market data (ICE) | Reference price level, including PJM |
+
+Each source is fetched separately, and implausible values are rejected. If a source fails, its last good values stay and are marked stale. The app's *How it works* tab shows every source's status and date, and the skill's `SKILL.md` lists the values.
+
+Strike and REC prices have no free public feed. Claude looks those up on the web when it runs the skill.
+
+**Optional keys** (free) add more data. Add them under the repository's Settings → Secrets and variables → Actions:
+
+- `PJM_API_KEY` from [PJM Data Miner](https://dataminer2.pjm.com/): hourly PJM prices and capture rates.
+- `NREL_API_KEY` from [NREL](https://developer.nrel.gov/signup/): replaces the rate-limited demo key for PVWatts.
+
+To refresh by hand, use Actions → *Refresh market data* → *Run workflow*. To refresh locally:
+
+```sh
+pip install -r scripts/data/requirements.txt
+python scripts/data/refresh.py
+npm run build:skill
+```
 
 ## The Claude skill
 

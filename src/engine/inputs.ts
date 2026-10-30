@@ -1,4 +1,4 @@
-import { FACT_BY_KEY } from './facts.ts';
+import { FACTS, FACT_BY_KEY } from './facts.ts';
 import { MARKETS, type Diligence, type Inputs, type Market } from './types.ts';
 
 /** For percentage fields given without a % sign: values above this are read as percents. */
@@ -58,18 +58,13 @@ function defaultsFor(technology: Inputs['technology']): Omit<Inputs, 'diligence'
 }
 
 /** Defaults that stand in for a missing number rather than a missing refinement. */
-const ASSUMED_WHEN_MISSING = new Set<keyof Inputs>([
-  'capacityMW',
-  'capacityFactor',
-  'termYears',
-  'strikePrice',
-  'hubPrice',
-  'wholesaleEscalation',
-  'recPrice',
-  'recEscalation',
-  'discountRate',
-  'annualLoadMWh',
-]);
+const ASSUMED_WHEN_MISSING = new Set<string>([...FACTS.filter((f) => f.core).map((f) => f.key), 'recEscalation']);
+
+export interface Rejected {
+  key: string;
+  given: unknown;
+  reason: string;
+}
 
 export interface Completed {
   inputs: Inputs;
@@ -77,6 +72,8 @@ export interface Completed {
   assumed: string[];
   /** Keys in the source this tool doesn't use. */
   ignored: string[];
+  /** Values that can't be right (outside the possible range), replaced like missing ones. */
+  rejected: Rejected[];
 }
 
 function toNumber(v: unknown): number | undefined {
@@ -119,19 +116,27 @@ export function completeInputs(partial: Record<string, unknown>): Completed {
   const assumed: string[] = [];
   const known = new Set<string>([...Object.keys(base), ...DILIGENCE_KEYS, 'diligence', 'annualGenerationMWh']);
   const ignored = Object.keys(partial).filter((k) => !known.has(k));
+  const rejected: Rejected[] = [];
+  if (!/^(solar|wind)$/i.test(String(src.technology ?? '').trim())) assumed.push('technology');
 
   if (typeof src.scenarioName === 'string' && src.scenarioName.trim()) inputs.scenarioName = src.scenarioName.trim();
   if (typeof src.assumptionOwner === 'string') inputs.assumptionOwner = src.assumptionOwner.trim();
   const market = MARKETS.find((m) => m.toLowerCase() === String(src.market ?? '').toLowerCase().replace(/\s+/g, ''));
   if (market) inputs.market = market as Market;
   else if (String(src.market ?? '').toLowerCase().replace(/[\s-]/g, '') === 'isone') inputs.market = 'ISO-NE';
+  else assumed.push('market');
   if (String(src.settlementPoint ?? '').toLowerCase().startsWith('node')) inputs.settlementPoint = 'node';
 
   for (const key of Object.keys(base) as (keyof Omit<Inputs, 'diligence'>)[]) {
     if (FACT_BY_KEY[key]?.format === 'text' || key === 'scenarioName' || key === 'assumptionOwner') continue;
     const n = toNumber(src[key]);
     const percentSign = typeof src[key] === 'string' && (src[key] as string).includes('%');
-    if (n !== undefined) (inputs as unknown as Record<string, number>)[key] = asFraction(key, n, percentSign);
+    const value = n === undefined ? undefined : asFraction(key, n, percentSign);
+    const range = FACT_BY_KEY[key]?.range;
+    if (value !== undefined && range && (value < range[0] || value > range[1])) {
+      rejected.push({ key, given: src[key], reason: `outside the possible range for ${FACT_BY_KEY[key].label.toLowerCase()}` });
+      if (ASSUMED_WHEN_MISSING.has(key)) assumed.push(key);
+    } else if (value !== undefined) (inputs as unknown as Record<string, number>)[key] = value;
     else if (ASSUMED_WHEN_MISSING.has(key)) assumed.push(key);
   }
 
@@ -160,7 +165,7 @@ export function completeInputs(partial: Record<string, unknown>): Completed {
     if (b !== undefined) inputs.diligence[k] = b;
   }
 
-  return { inputs, assumed, ignored };
+  return { inputs, assumed, ignored, rejected };
 }
 
 // ── Reading a pasted table ─────────────────────────────────────────
@@ -260,8 +265,9 @@ export function readAssumptions(text: string): { values: Record<string, unknown>
     }
 
     const key = match[1];
+    // Pass the raw number on (with its % sign) so completeInputs converts it exactly once.
+    values[key] = amount.percent ? `${amount.value}%` : amount.value;
     const value = asFraction(key, amount.value, amount.percent);
-    values[key] = value;
     if (tech && !values.technology) values.technology = tech;
     lines.push({ text: line, key, value });
   }

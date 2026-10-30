@@ -17,41 +17,65 @@ A procurement model can be arithmetically right and still give the wrong answer 
 
 If Node isn’t available, apply the checks by hand: evaluate each check’s conditions, swap in the benchmark for every critical or warning finding that has one, compare the corrected cost of each option, and present the result in the same order as step 3.
 
-Benchmarks are defaults with sources and dates. If you have newer market data, say so and re-run with it.
+Benchmarks come from public market data refreshed weekly (see "Market data" below) or, where no free source exists, from dated defaults. Strike and REC prices have no free feed: search the web for the latest LevelTen PPA Price Index and a current REC quote for the right product, tell the user what you found, and compare them with the model.
+
+## Market data (refreshed 2026-10-29)
+
+The calculator already uses these. Quote them when you explain a correction.
+
+- Inflation bond markets expect over 10 years: 2.35%. Last 12 months (CPI, 2026-09): 4.02%. 2022 peak: 8.98%. _(FRED: 10-year breakeven inflation (T10YIE), 5-year forward inflation expectation (T5YIFR), CPI (CPIAUCSL), 2026-10-28)_
+- 10-year Treasury: 5.16%; Baa corporate bonds: 6.61%. _(FRED: 10-year Treasury yield (DGS10), Moody's Baa corporate bond yield (DBAA), 2026-10-28)_
+- US cost of capital: 6.96% overall; 5.21% to 8.48% across 94 industries. _(Aswath Damodaran, NYU Stern: cost of capital by industry, US companies, 2026-01-05)_
+- US fleet capacity factors: solar 24%, wind 34.3%, 2025-09 to 2026-08. _(EIA Electric Power Monthly, Table 6.07.B (utility-scale fleet, trailing 12 months))_
+
+| Market | Hub | Avg day-ahead price | Negative-price hours | Solar capture | Wind capture | Period |
+|---|---|---|---|---|---|---|
+| ERCOT | HB_NORTH | $34.80/MWh | 0.72% | 68.9% | 88.6% | 2025-10-26 to 2026-10-24 |
+| CAISO | TH_SP15_GEN-APND | $24.73/MWh | 16.4% | 43.3% | 99.5% | 2025-10-26 to 2026-10-26 |
+| MISO | INDIANA.HUB | $39.01/MWh | 0% | 87.1% | 100.8% | 2025-10-26 to 2026-10-26 |
+| SPP | SPPSOUTH_HUB | $22.83/MWh | 16.7% | 161.1% | 72.6% | 2025-10-26 to 2026-10-26 |
+| NYISO | CENTRL | $58.20/MWh | 0% | n/a | 97.2% | 2025-10-26 to 2026-10-26 |
+| ISO-NE | .H.INTERNAL_HUB | $66.20/MWh | 0% | 74.8% | 98.3% | 2025-10-26 to 2026-10-26 |
+
+Not refreshed this time: Expected solar output by region (NREL PVWatts) (failed); Hourly day-ahead prices, PJM (WESTERN HUB) (skipped).
 
 ## Input keys
 
-| Key | Meaning | Unit | If missing |
-|---|---|---|---|
-| `technology` | Technology: solar or wind | solar, wind | solar |
-| `market` | Market: ISO/RTO the project sits in | ERCOT, PJM, MISO, SPP, CAISO, NYISO, ISO-NE, Other | Other |
-| `capacityMW` | Project size: Contracted capacity, MW AC | MW (AC) | Benchmark, reported as assumed |
-| `capacityFactor` | Capacity factor: Average output as a share of nameplate | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
-| `degradation` | Output degradation: Annual loss of output | fraction (0.075 = 7.5%) | Treated as not modeled (0), so the check fires |
-| `termYears` | Contract term: VPPA length in years | years | Benchmark, reported as assumed |
-| `strikePrice` | Strike price: Fixed VPPA price, year 1 | $/MWh | Benchmark, reported as assumed |
-| `strikeEscalation` | Strike escalator: Annual increase in the strike price | fraction (0.075 = 7.5%) | 0 (flat strike) |
-| `settlementPoint` | Settlement point: hub or node | hub, node | hub |
-| `basis` | Basis (node minus hub): Applies only to node settlement | $/MWh | 0 |
-| `transactionCost` | Transaction costs: One-time legal, advisory, and procurement costs | $ | Treated as not modeled ($0), so the check fires |
-| `hubPrice` | Hub price, year 1: Around-the-clock wholesale price | $/MWh | Benchmark, reported as assumed |
-| `wholesaleEscalation` | Wholesale price escalation: Annual growth in wholesale prices | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
-| `captureRate` | Capture rate: Project's generation-weighted price as a share of the around-the-clock price | fraction (0.075 = 7.5%) | Treated as not modeled (100%), so the check fires |
-| `annualLoadMWh` | Annual load: Electricity use to be matched with RECs | MWh per year | Year-1 generation (project sized to load), reported as assumed |
-| `recPrice` | REC price, year 1: Unbundled REC price | $/MWh | Benchmark, reported as assumed |
-| `recEscalation` | REC price escalation: Annual growth in REC prices | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
-| `discountRate` | Discount rate: Rate used to discount future costs | fraction (0.075 = 7.5%) | Benchmark, reported as assumed |
-| `accountingReviewed` | Derivative accounting reviewed: ASC 815 / IFRS 9 treatment confirmed | true / false | false (unknown), so it becomes a question |
-| `creditSupportReviewed` | Credit support reviewed: Collateral or guarantee requirements known | true / false | false (unknown), so it becomes a question |
-| `negativePriceTermsReviewed` | Negative-price terms reviewed: Floor or curtailment clause checked | true / false | false (unknown), so it becomes a question |
-| `marketBoundaryConfirmed` | REC market boundary confirmed: RECs come from the same market as the load | true / false | false (unknown), so it becomes a question |
-| `scope2RevisionConsidered` | Scope 2 revision considered: GHG Protocol Scope 2 proposals reviewed | true / false | false (unknown), so it becomes a question |
-| `annualGenerationMWh` | Annual generation, in place of size or capacity factor | MWh per year | Derived from size × capacity factor |
-| `scenarioName`, `assumptionOwner` | Name of the deal; who supplied the assumptions | text | Generic name; questions addressed generically |
+Keys marked **needed** are the minimum for useful advice; anything missing is filled with a benchmark and listed so the user can firm it up. A value outside its valid range is rejected as an error (usually a unit mix-up) and replaced the same way. When you extract a number, note where it came from; the "Best source" column says what a reliable one looks like.
+
+| Key | Meaning | Unit | Needed | Valid range | Best source | If missing |
+|---|---|---|---|---|---|---|
+| `technology` | Technology: solar or wind | solar, wind | needed |  | Term sheet | solar |
+| `market` | Market: ISO/RTO the project sits in | ERCOT, PJM, MISO, SPP, CAISO, NYISO, ISO-NE, Other | needed |  | Term sheet (project location and settlement hub) | Other |
+| `capacityMW` | Project size: Contracted capacity, MW AC | MW (AC) | needed | 0.1 MW to 5,000 MW | Term sheet: contracted share, not the whole project | Benchmark, reported as assumed |
+| `capacityFactor` | Capacity factor: Average output as a share of nameplate | fraction (0.075 = 7.5%) | needed | 5% to 70% | Independent energy yield assessment (P50); developer estimates run high | Benchmark, reported as assumed |
+| `degradation` | Output degradation: Annual loss of output | fraction (0.075 = 7.5%) |  | 0% to 5% | Energy yield assessment or module warranty | Treated as not modeled (0), so the check fires |
+| `termYears` | Contract term: VPPA length in years | years | needed | 1 years to 35 years | Term sheet | Benchmark, reported as assumed |
+| `strikePrice` | Strike price: Fixed VPPA price, year 1 | $/MWh | needed | $1.00/MWh to $300.00/MWh | Developer’s firm offer, dated; compare with the LevelTen P25 index | Benchmark, reported as assumed |
+| `strikeEscalation` | Strike escalator: Annual increase in the strike price | fraction (0.075 = 7.5%) |  | -5% to 10% | Term sheet | 0 (flat strike) |
+| `settlementPoint` | Settlement point: hub or node | hub, node |  |  | Term sheet | hub |
+| `basis` | Basis (node minus hub): Applies only to node settlement | $/MWh |  | −$100.00/MWh to $100.00/MWh | Node vs. hub price history from ISO data, weighted by the project’s output | 0 |
+| `transactionCost` | Transaction costs: One-time legal, advisory, and procurement costs | $ |  | $0 to $100M | Quotes from counsel and the procurement advisor | Treated as not modeled ($0), so the check fires |
+| `hubPrice` | Hub price, year 1: Around-the-clock wholesale price | $/MWh | needed | $1.00/MWh to $500.00/MWh | Dated hub forward curve from a broker or the ISO; stale curves are common | Benchmark, reported as assumed |
+| `wholesaleEscalation` | Wholesale price escalation: Annual growth in wholesale prices | fraction (0.075 = 7.5%) | needed | -5% to 25% | Advisor’s long-run fundamentals forecast; cross-check with EIA’s Annual Energy Outlook. A single year’s inflation is not a forecast | Benchmark, reported as assumed |
+| `captureRate` | Capture rate: Project's generation-weighted price as a share of the around-the-clock price | fraction (0.075 = 7.5%) |  | -150% to 250% | Shape or capture study for the project’s location | Treated as not modeled (100%), so the check fires |
+| `annualLoadMWh` | Annual load: Electricity use to be matched with RECs | MWh per year | needed | 1 MWh to 1,000,000,000 MWh | Utility bills or the energy management system, for the sites the claim covers | Year-1 generation (project sized to load), reported as assumed |
+| `recPrice` | REC price, year 1: Unbundled REC price | $/MWh | needed | $0.00/MWh to $100.00/MWh | Broker quote for the exact product and vintage (national voluntary vs. state compliance) | Benchmark, reported as assumed |
+| `recEscalation` | REC price escalation: Annual growth in REC prices | fraction (0.075 = 7.5%) |  | -20% to 50% | Broker view; voluntary REC prices have no steady trend | Benchmark, reported as assumed |
+| `discountRate` | Discount rate: Rate used to discount future costs | fraction (0.075 = 7.5%) | needed | 0% to 30% | Treasury or finance (the company’s cost of capital) | Benchmark, reported as assumed |
+| `accountingReviewed` | Derivative accounting reviewed: ASC 815 / IFRS 9 treatment confirmed | true / false |  |  | Controller’s group | false (unknown), so it becomes a question |
+| `creditSupportReviewed` | Credit support reviewed: Collateral or guarantee requirements known | true / false |  |  | Treasury and the term sheet | false (unknown), so it becomes a question |
+| `negativePriceTermsReviewed` | Negative-price terms reviewed: Floor or curtailment clause checked | true / false |  |  | The contract, reviewed by counsel | false (unknown), so it becomes a question |
+| `marketBoundaryConfirmed` | REC market boundary confirmed: RECs come from the same market as the load | true / false |  |  | REC tracking system records (e.g. M-RETS, PJM-GATS, ERCOT) | false (unknown), so it becomes a question |
+| `scope2RevisionConsidered` | Scope 2 revision considered: GHG Protocol Scope 2 proposals reviewed | true / false |  |  | Sustainability reporting lead | false (unknown), so it becomes a question |
+| `annualGenerationMWh` | Annual generation, in place of size or capacity factor | MWh per year | | | Energy yield assessment (P50) | Derived from size × capacity factor |
+| `scenarioName`, `assumptionOwner` | Name of the deal; who supplied the assumptions | text | | | | Generic name; questions addressed generically |
+
+When two checks suggest different values for the same input, the more serious check wins (critical over warning, then the larger effect on the result). The calculator does this for you.
 
 See `example-inputs.json` for a complete example.
 
-## Checks (27)
+## Checks (32)
 
 ### Market prices
 
@@ -60,7 +84,7 @@ See `example-inputs.json` for a complete example.
 - **Fires when:** Wholesale price escalation is above 4%
 - **Report:** Wholesale prices are assumed to rise {wholesaleEscalation} a year. Compounded over {termYears}, that puts the hub price at {finalYearHubPrice} in the final year, {hubPriceMultiple} today’s level.
 - **Why:** PPA models typically escalate wholesale prices 2.5–3% a year, roughly long-run inflation, because long-range forecasts show flat real power prices. A rate like 7.5% looks like one high-inflation year applied to the whole term. Higher escalation raises every future VPPA settlement, so it makes the VPPA look better than it is. Load growth from data centers has lifted near-term prices in some markets (PJM, for example). That can support a higher rate for the first few years, not for the full term.
-- **Benchmark:** 2.75%/yr, the midpoint of the typical 2.5–3% range (set `wholesaleEscalation` = 2.75%)
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: 2.75%/yr, the midpoint of the typical 2.5–3% range (`wholesaleEscalation` = 2.75%)
 - **Ask:** What is the source for this escalation rate, and why should it hold for every year of the contract?
 - **Source:** Typical PPA modeling range; Federal Reserve 2% inflation target; EIA Annual Energy Outlook (roughly flat real wholesale prices)
 - **Origin:** Added after a reviewer caught a VPPA vs. REC model that used 7.5%/yr wholesale price inflation for the whole term. It made the VPPA look favorable when it was not.
@@ -70,9 +94,18 @@ See `example-inputs.json` for a complete example.
 - **Fires when:** Wholesale price escalation is between 3.51% and 4%
 - **Report:** Wholesale prices rise {wholesaleEscalation} a year, above the typical 2.5–3% range.
 - **Why:** Small differences in escalation compound over a long contract. Half a point above the norm can decide a close comparison.
-- **Benchmark:** 2.75%/yr (set `wholesaleEscalation` = 2.75%)
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: 2.75%/yr (`wholesaleEscalation` = 2.75%)
 - **Ask:** What market view supports escalation above 3.5% a year?
 - **Source:** Typical PPA modeling range
+
+#### MKT-ESC-VS-INFLATION: Escalation well above expected inflation (warning)
+
+- **Fires when:** Escalation above expected inflation is above 1% AND Wholesale price escalation is below 3.51%
+- **Report:** Wholesale prices rise {wholesaleEscalation} a year, more than a point above the {expectedInflation} inflation bond markets expect over the next decade.
+- **Why:** Long-run power prices tend to track general inflation. Assuming they outrun it every year for the whole term is a forecast that needs its own support.
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: 2.75%/yr (`wholesaleEscalation` = 2.75%)
+- **Ask:** What makes power prices rise faster than inflation for the entire term?
+- **Source:** FRED 10-year breakeven inflation (T10YIE), refreshed weekly
 
 #### MKT-ESC-VS-DISCOUNT: Prices grow as fast as the discount rate (warning)
 
@@ -84,28 +117,28 @@ See `example-inputs.json` for a complete example.
 
 #### MKT-CAPTURE-SOLAR: Solar valued at the full around-the-clock price (warning)
 
-- **Fires when:** Technology is solar AND Capture rate is at least 98%
-- **Report:** Solar output is valued at {captureRate} of the around-the-clock hub price.
+- **Fires when:** Technology is solar AND Capture rate is at least 98% AND Expected capture rate is below 95%
+- **Report:** Solar output is valued at {captureRate} of the around-the-clock hub price; expect about {expectedCaptureRate} here.
 - **Why:** Solar produces in midday hours, when prices are lowest, and the discount deepens as more solar is built. CAISO solar captured about 72% of the average price in 2021 and went negative in spring 2026. Pricing solar at 100% overstates the VPPA’s settlements every year.
-- **Benchmark:** 85% (planning placeholder; replace with a market-specific shape study) (set `captureRate` = 85%)
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: 85% (planning placeholder; replace with a market-specific shape study) (`captureRate` = 85%)
 - **Ask:** Is there a shape or capture-rate analysis for this project’s location?
 - **Source:** Modo Energy, CAISO solar capture (spring 2026); Enverus; IER analysis of CAISO 2021
 
-#### MKT-CAPTURE-CAISO: CAISO solar capture rate looks optimistic (warning)
+#### MKT-CAPTURE-VS-MARKET: Capture rate above what the market delivered (warning)
 
-- **Fires when:** Technology is solar AND Market is CAISO AND Capture rate is between 75% and 97.9%
-- **Report:** A {captureRate} capture rate is high for solar in CAISO.
-- **Why:** CAISO has the deepest midday price discount in the US. Solar capture rates there have fallen well below 75%, and were negative in spring 2026.
-- **Benchmark:** 65% (placeholder; verify with a current CAISO shape study) (set `captureRate` = 65%)
-- **Ask:** What recent CAISO shape data supports this capture rate?
-- **Source:** Modo Energy, CAISO solar capture (spring 2026); Enverus
+- **Fires when:** Capture rate above market is above 10% AND Capture rate is below 98%
+- **Report:** A {captureRate} capture rate is well above the {marketCaptureRate} that {technology} output actually earned in this market over the past year.
+- **Why:** Capture rates move with how much solar and wind a market already has. Last year’s market-wide figure is the best public starting point; a project-specific shape study can justify a different number.
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: market capture rate (`captureRate` = 85%)
+- **Ask:** What shape or capture study supports a higher capture rate than the market delivered?
+- **Source:** Grid operator day-ahead hub prices × EIA-930 hourly output, refreshed weekly
 
 #### MKT-CAPTURE-WIND: Wind valued at the full around-the-clock price (info)
 
-- **Fires when:** Technology is wind AND Capture rate is at least 98%
-- **Report:** Wind output is valued at {captureRate} of the around-the-clock hub price.
+- **Fires when:** Technology is wind AND Capture rate is at least 98% AND Expected capture rate is below 95%
+- **Report:** Wind output is valued at {captureRate} of the around-the-clock hub price; expect about {expectedCaptureRate} here.
 - **Why:** Wind often blows hardest at night and in shoulder seasons, when prices are lower, so its capture rate is usually below 100%.
-- **Benchmark:** 90% (placeholder) (set `captureRate` = 90%)
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: 90% (placeholder) (`captureRate` = 90%)
 - **Ask:** Is there a shape analysis for this wind project?
 - **Source:** General market practice
 
@@ -126,6 +159,15 @@ See `example-inputs.json` for a complete example.
 - **Ask:** Which forward curve is this from, and what date?
 - **Source:** General market practice
 
+#### MKT-HUB-VS-MARKET: Year-1 hub price far from the past year (warning)
+
+- **Fires when:** Hub price vs. past year is outside 0.80× to 1.25×
+- **Report:** A year-1 hub price of {hubPrice} is {hubPriceVsMarket} the {marketHubPrice} average day-ahead price at this market’s main hub over the past year.
+- **Why:** Next year’s prices can differ from last year’s, but a gap of more than 20–25% usually means an old curve, an on-peak price used as an around-the-clock one, or the wrong hub.
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: past-year average (`hubPrice` = $45.00/MWh)
+- **Ask:** Which forward curve and hub is this price from, and is it around-the-clock or on-peak?
+- **Source:** Grid operator day-ahead hub prices, refreshed weekly
+
 ### Project output
 
 #### PRJ-CF-SOLAR: Solar capacity factor outside the usual range (warning)
@@ -133,7 +175,7 @@ See `example-inputs.json` for a complete example.
 - **Fires when:** Technology is solar AND Capacity factor is outside 15% to 33%
 - **Report:** A {capacityFactor} capacity factor is outside the 15–33% range for utility-scale solar.
 - **Why:** US utility-scale solar averages about 24%. Single-axis trackers in the Southwest reach the low 30s.
-- **Benchmark:** 24%, the US utility-scale average (set `capacityFactor` = 24%)
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: 24%, the US utility-scale average (`capacityFactor` = 24%)
 - **Ask:** Is this from an independent energy yield assessment (P50)?
 - **Source:** EIA Electric Power Monthly, capacity factors for utility-scale solar
 
@@ -142,9 +184,18 @@ See `example-inputs.json` for a complete example.
 - **Fires when:** Technology is wind AND Capacity factor is outside 25% to 50%
 - **Report:** A {capacityFactor} capacity factor is outside the 25–50% range for US wind.
 - **Why:** The US wind fleet averages roughly 35%; newer projects in strong wind regions reach the mid-40s.
-- **Benchmark:** 36% (set `capacityFactor` = 36%)
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: 36% (`capacityFactor` = 36%)
 - **Ask:** Is this from an independent energy yield assessment (P50)?
 - **Source:** EIA Electric Power Monthly; LBNL Land-Based Wind Market Report
+
+#### PRJ-CF-VS-EXPECTED: Capacity factor above what is expected here (warning)
+
+- **Fires when:** Capacity factor above expected is above 4%
+- **Report:** A {capacityFactor} capacity factor is more than 4 points above the {expectedCapacityFactor} expected for {technology} in this market.
+- **Why:** Higher output means more MWh settling against the strike every year. Developer estimates often run high; an independent P50 assessment is the reliable number.
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: expected capacity factor (`capacityFactor` = 24%)
+- **Ask:** Is this from an independent energy yield assessment (P50)?
+- **Source:** NREL PVWatts for the region (solar); EIA fleet average (wind); refreshed weekly
 
 #### PRJ-NO-DEGRADATION: No output degradation (warning)
 
@@ -201,11 +252,19 @@ See `example-inputs.json` for a complete example.
 
 #### CTR-NEGATIVE-PRICES: Negative-price terms not reviewed (warning)
 
-- **Fires when:** Negative-price terms reviewed is no
+- **Fires when:** Negative-price terms reviewed is no AND Market price data available is no
 - **Report:** Nobody has confirmed how the VPPA settles when prices go negative.
 - **Why:** In markets with frequent negative prices (ERCOT, SPP, CAISO), a VPPA with no price floor or curtailment clause can make the buyer pay the strike plus the negative price. This model uses annual averages and cannot show that cost.
 - **Ask:** Does the contract include a floor at $0 or a curtailment right during negative prices?
 - **Source:** General market practice
+
+#### CTR-NEGATIVE-PRICES-FREQUENT: Frequent negative prices, terms not reviewed (warning)
+
+- **Fires when:** Hours with negative prices is above 2% AND Negative-price terms reviewed is no
+- **Report:** Day-ahead prices at this market’s hub were negative in {marketNegativeHourShare} of hours over the past year, and nobody has confirmed how the VPPA settles then.
+- **Why:** In those hours a VPPA with no price floor makes the buyer pay the strike plus the negative price. This model uses annual averages and cannot show that cost.
+- **Ask:** Does the contract include a floor at $0 or a curtailment right during negative prices?
+- **Source:** Grid operator day-ahead hub prices, refreshed weekly
 
 ### Finance & RECs
 
@@ -214,9 +273,18 @@ See `example-inputs.json` for a complete example.
 - **Fires when:** Discount rate is outside 5% to 12%
 - **Report:** A {discountRate} discount rate is outside the 5–12% range typical for corporate cost of capital.
 - **Why:** A low rate inflates the weight of distant years, where VPPA value usually sits.
-- **Benchmark:** 8% (set `discountRate` = 8%)
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: 8% (`discountRate` = 8%)
 - **Ask:** Did finance supply this rate?
 - **Source:** General corporate finance practice
+
+#### FIN-DISCOUNT-BELOW-TREASURY: Discount rate below the risk-free rate (warning)
+
+- **Fires when:** Discount rate above Treasuries is below 0%
+- **Report:** A {discountRate} discount rate is below the {treasury10y} yield on 10-year US Treasuries.
+- **Why:** A company’s cost of capital is almost always above the risk-free rate. Discounting below it overweights distant years, where VPPA value usually sits.
+- **Benchmark:** from current market data (see "Market data"); the calculator fills it in. Default when data is missing: 8% (`discountRate` = 8%)
+- **Ask:** Did finance supply this rate, and is it current?
+- **Source:** FRED 10-year Treasury yield (DGS10); Damodaran cost of capital; refreshed weekly
 
 #### FIN-REC-COMPLIANCE-PRICE: REC price looks like a compliance-market price (warning)
 
@@ -338,6 +406,22 @@ Every value a check can test, including calculated ones. Use these names when pr
 | `breakEvenStrike` | Break-even strike price: Strike at which both options cost the same | derived |
 | `lateValueShare` | VPPA upside after year 10: Share of discounted positive settlements that arrive after year 10 | derived |
 | `firstPositiveYear` | First year the VPPA pays out: 0 when it never does | derived |
+| `expectedInflation` | Inflation markets expect (10 yr): 10-year breakeven inflation, FRED | derived |
+| `escalationOverInflation` | Escalation above expected inflation: Assumed wholesale escalation minus expected inflation | derived |
+| `recentInflation` | Inflation, last 12 months: CPI, FRED | derived |
+| `inflationPeak2022` | Inflation peak in 2022: Highest 12-month CPI change in 2022, FRED | derived |
+| `treasury10y` | 10-year Treasury yield: Risk-free rate, FRED | derived |
+| `discountOverTreasury` | Discount rate above Treasuries: Discount rate minus the 10-year Treasury yield | derived |
+| `marketCostOfCapital` | Average US cost of capital: Damodaran, all US companies | derived |
+| `hasPriceData` | Market price data available: Hourly hub prices were fetched for this market | derived |
+| `marketHubPrice` | Market average price, past year: Average day-ahead price at the market’s main hub | derived |
+| `hubPriceVsMarket` | Hub price vs. past year: Assumed year-1 hub price divided by the past year’s average | derived |
+| `marketNegativeHourShare` | Hours with negative prices: Share of day-ahead hours below $0 at the hub, past year | derived |
+| `marketCaptureRate` | Capture rate in this market: What solar or wind output earned vs. the average price, past year | derived |
+| `expectedCaptureRate` | Expected capture rate: Measured in this market when available; otherwise a planning default (solar 85%, wind 90%) | derived |
+| `captureRateVsMarket` | Capture rate above market: Assumed capture rate minus what the market delivered | derived |
+| `expectedCapacityFactor` | Expected capacity factor: NREL PVWatts for the region (solar) or the US fleet average (EIA) | derived |
+| `capacityFactorVsExpected` | Capacity factor above expected: Assumed capacity factor minus the expected one | derived |
 
 ## Machine-readable checks
 
@@ -381,6 +465,28 @@ Every value a check can test, including calculated ones. Use these names when pr
     }
   },
   {
+    "id": "MKT-ESC-VS-INFLATION",
+    "title": "Escalation well above expected inflation",
+    "severity": "warning",
+    "category": "Market prices",
+    "when": [
+      {
+        "fact": "escalationOverInflation",
+        "op": ">",
+        "value": 0.01
+      },
+      {
+        "fact": "wholesaleEscalation",
+        "op": "<",
+        "value": 0.0351
+      }
+    ],
+    "benchmark": {
+      "input": "wholesaleEscalation",
+      "value": 0.0275
+    }
+  },
+  {
     "id": "MKT-ESC-VS-DISCOUNT",
     "title": "Prices grow as fast as the discount rate",
     "severity": "warning",
@@ -408,6 +514,11 @@ Every value a check can test, including calculated ones. Use these names when pr
         "fact": "captureRate",
         "op": ">=",
         "value": 0.98
+      },
+      {
+        "fact": "expectedCaptureRate",
+        "op": "<",
+        "value": 0.95
       }
     ],
     "benchmark": {
@@ -416,33 +527,25 @@ Every value a check can test, including calculated ones. Use these names when pr
     }
   },
   {
-    "id": "MKT-CAPTURE-CAISO",
-    "title": "CAISO solar capture rate looks optimistic",
+    "id": "MKT-CAPTURE-VS-MARKET",
+    "title": "Capture rate above what the market delivered",
     "severity": "warning",
     "category": "Market prices",
     "when": [
       {
-        "fact": "technology",
-        "op": "==",
-        "value": "solar"
-      },
-      {
-        "fact": "market",
-        "op": "==",
-        "value": "CAISO"
+        "fact": "captureRateVsMarket",
+        "op": ">",
+        "value": 0.1
       },
       {
         "fact": "captureRate",
-        "op": "between",
-        "value": [
-          0.75,
-          0.979
-        ]
+        "op": "<",
+        "value": 0.98
       }
     ],
     "benchmark": {
       "input": "captureRate",
-      "value": 0.65
+      "value": 0.85
     }
   },
   {
@@ -460,6 +563,11 @@ Every value a check can test, including calculated ones. Use these names when pr
         "fact": "captureRate",
         "op": ">=",
         "value": 0.98
+      },
+      {
+        "fact": "expectedCaptureRate",
+        "op": "<",
+        "value": 0.95
       }
     ],
     "benchmark": {
@@ -504,6 +612,26 @@ Every value a check can test, including calculated ones. Use these names when pr
         ]
       }
     ]
+  },
+  {
+    "id": "MKT-HUB-VS-MARKET",
+    "title": "Year-1 hub price far from the past year",
+    "severity": "warning",
+    "category": "Market prices",
+    "when": [
+      {
+        "fact": "hubPriceVsMarket",
+        "op": "outside",
+        "value": [
+          0.8,
+          1.25
+        ]
+      }
+    ],
+    "benchmark": {
+      "input": "hubPrice",
+      "value": 45
+    }
   },
   {
     "id": "PRJ-CF-SOLAR",
@@ -553,6 +681,23 @@ Every value a check can test, including calculated ones. Use these names when pr
     "benchmark": {
       "input": "capacityFactor",
       "value": 0.36
+    }
+  },
+  {
+    "id": "PRJ-CF-VS-EXPECTED",
+    "title": "Capacity factor above what is expected here",
+    "severity": "warning",
+    "category": "Project output",
+    "when": [
+      {
+        "fact": "capacityFactorVsExpected",
+        "op": ">",
+        "value": 0.04
+      }
+    ],
+    "benchmark": {
+      "input": "capacityFactor",
+      "value": 0.24
     }
   },
   {
@@ -678,6 +823,29 @@ Every value a check can test, including calculated ones. Use these names when pr
         "fact": "negativePriceTermsReviewed",
         "op": "==",
         "value": false
+      },
+      {
+        "fact": "hasPriceData",
+        "op": "==",
+        "value": false
+      }
+    ]
+  },
+  {
+    "id": "CTR-NEGATIVE-PRICES-FREQUENT",
+    "title": "Frequent negative prices, terms not reviewed",
+    "severity": "warning",
+    "category": "Contract terms",
+    "when": [
+      {
+        "fact": "marketNegativeHourShare",
+        "op": ">",
+        "value": 0.02
+      },
+      {
+        "fact": "negativePriceTermsReviewed",
+        "op": "==",
+        "value": false
       }
     ]
   },
@@ -694,6 +862,23 @@ Every value a check can test, including calculated ones. Use these names when pr
           0.05,
           0.12
         ]
+      }
+    ],
+    "benchmark": {
+      "input": "discountRate",
+      "value": 0.08
+    }
+  },
+  {
+    "id": "FIN-DISCOUNT-BELOW-TREASURY",
+    "title": "Discount rate below the risk-free rate",
+    "severity": "warning",
+    "category": "Finance & RECs",
+    "when": [
+      {
+        "fact": "discountOverTreasury",
+        "op": "<",
+        "value": 0
       }
     ],
     "benchmark": {

@@ -168,7 +168,13 @@ export function Playbook({ playbook, facts, onEdit, onAdd, onToggle, onDelete, o
                             {off ? <span className="badge">Off</span> : null}
                           </div>
                           <span className="rule-meta">Fires when {r.when.map(describeCondition).join(' and ')}.</span>
-                          {r.benchmark ? <span className="rule-meta">Benchmark: {r.benchmark.label}</span> : null}
+                          {r.benchmark ? (
+                            <span className="rule-meta">
+                              Benchmark: {r.benchmark.data ? 'refreshed weekly from public market data (default ' : ''}
+                              {r.benchmark.label}
+                              {r.benchmark.data ? ')' : ''}
+                            </span>
+                          ) : null}
                           {r.source ? <span className="rule-meta muted">Source: {r.source}</span> : null}
                           {r.lesson ? <span className="lesson">{r.lesson}</span> : null}
                         </div>

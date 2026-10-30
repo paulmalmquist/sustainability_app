@@ -1,4 +1,5 @@
-import { FACT_BY_KEY } from './facts.ts';
+import { FACT_BY_KEY, validateInputs, type InputProblem } from './facts.ts';
+import type { Rejected } from './inputs.ts';
 import { fmtPct, fmtPerMWh, fmtUSD, formatFact } from './format.ts';
 import { shift } from './memo.ts';
 import { breakEvenEscalation, breakEvenStrike, runModel, withInput } from './model.ts';
@@ -18,6 +19,14 @@ export interface Advice {
   corrected: ModelResult;
   /** Findings whose benchmark replaced the submitted value. */
   corrections: Finding[];
+  /** Findings whose benchmark lost to a more serious finding on the same input. */
+  superseded: Finding[];
+  /** Values that can't be right; the advice is not reliable until they're fixed. */
+  problems: InputProblem[];
+  /** Values the source gave that were outside the possible range and were replaced. */
+  rejected: Rejected[];
+  /** Needed inputs that were filled in rather than given. */
+  assumedCore: string[];
   /** Flagged values a reviewer chose to keep. */
   kept: Finding[];
   /** Things the assumption owner should answer, most important first. */
@@ -42,13 +51,21 @@ export interface Advice {
  * reviewer has decided otherwise; the advice then reports the corrected
  * answer, how sure it is, and what would change it.
  */
-export function advise(inputs: Inputs, rules: Rule[], opts: { assumed?: string[]; review?: ReviewState } = {}): Advice {
+export function advise(
+  inputs: Inputs,
+  rules: Rule[],
+  opts: { assumed?: string[]; rejected?: Rejected[]; review?: ReviewState } = {},
+): Advice {
   const review = opts.review ?? { decisions: {} };
   const submitted = runModel(inputs);
   const findings = runPreflight(inputs, rules, submitted);
 
+  // Findings arrive most serious first, then largest impact. When two
+  // benchmarks target the same input, the first one wins.
   const corrections: Finding[] = [];
+  const superseded: Finding[] = [];
   const kept: Finding[] = [];
+  const correctedKeys = new Set<string>();
   let correctedInputs = inputs;
   for (const f of findings) {
     const d = decisionFor(review, f.rule.id).disposition;
@@ -56,12 +73,18 @@ export function advise(inputs: Inputs, rules: Rule[], opts: { assumed?: string[]
       kept.push(f);
       continue;
     }
-    const auto = f.rule.severity !== 'info' || d === 'use-benchmark';
+    const auto = (f.rule.severity !== 'info' && f.rule.benchmark?.auto !== false) || d === 'use-benchmark';
     if (f.rule.benchmark && auto) {
+      if (correctedKeys.has(f.rule.benchmark.input)) {
+        superseded.push(f);
+        continue;
+      }
+      correctedKeys.add(f.rule.benchmark.input);
       correctedInputs = withInput(correctedInputs, f.rule.benchmark.input, f.rule.benchmark.value);
       corrections.push(f);
     }
   }
+  const problems = validateInputs(inputs);
 
   const corrected = runModel(correctedInputs);
   const keptIds = new Set(kept.map((f) => f.rule.id));
@@ -70,7 +93,9 @@ export function advise(inputs: Inputs, rules: Rule[], opts: { assumed?: string[]
   const questions = findings.filter(
     (f) => f.rule.severity !== 'info' && !keptIds.has(f.rule.id) && (f.rule.ask || !correctedIds.has(f.rule.id)),
   );
-  const notes = findings.filter((f) => f.rule.severity === 'info' && !correctedIds.has(f.rule.id));
+  const notes = findings.filter(
+    (f) => (f.rule.severity === 'info' || f.rule.benchmark?.auto === false) && !correctedIds.has(f.rule.id) && !keptIds.has(f.rule.id),
+  );
 
   const discountedMWh = corrected.rows.reduce((sum, r) => sum + r.generationMWh * r.discountFactor, 0);
   const premiumPerMWh = discountedMWh > 0 ? -corrected.npvAdvantage / discountedMWh : NaN;
@@ -79,7 +104,10 @@ export function advise(inputs: Inputs, rules: Rule[], opts: { assumed?: string[]
   const flips = sensitivity(correctedInputs).filter(
     (s) => Math.sign(base + s.lowDelta) !== Math.sign(base) || Math.sign(base + s.highDelta) !== Math.sign(base),
   );
-  const confidence: Confidence = flips.length === 0 ? 'high' : flips.length <= 2 ? 'medium' : 'low';
+  const assumedCore = [...new Set([...(opts.assumed ?? []), ...(opts.rejected ?? []).map((r) => r.key)])].filter((k) => FACT_BY_KEY[k]?.core);
+  let confidence: Confidence = problems.length ? 'low' : flips.length === 0 ? 'high' : flips.length <= 2 ? 'medium' : 'low';
+  // An answer built on filled-in numbers is only as good as those numbers.
+  if (confidence === 'high' && assumedCore.length) confidence = 'medium';
 
   const beStrike = breakEvenStrike(correctedInputs);
   const beEsc = breakEvenEscalation(correctedInputs);
@@ -123,6 +151,10 @@ export function advise(inputs: Inputs, rules: Rule[], opts: { assumed?: string[]
     correctedInputs,
     corrected,
     corrections,
+    superseded,
+    problems,
+    rejected: opts.rejected ?? [],
+    assumedCore,
     kept,
     questions,
     notes,
@@ -144,6 +176,11 @@ const CONFIDENCE_TEXT: Record<Confidence, string> = {
 };
 
 export function confidenceText(a: Advice): string {
+  if (a.problems.length) return 'Low: some inputs are outside their possible range, so the numbers can’t be trusted yet. Fix them first.';
+  if (!a.flips.length && a.assumedCore.length) {
+    const names = a.assumedCore.map((k) => FACT_BY_KEY[k]?.label ?? k).join('; ');
+    return `Medium: no single assumption reverses this, but ${a.assumedCore.length === 1 ? 'one needed input was' : `${a.assumedCore.length} needed inputs were`} filled in (${names}). Firm ${a.assumedCore.length === 1 ? 'it' : 'them'} up to raise confidence.`;
+  }
   if (!a.flips.length) return CONFIDENCE_TEXT.high;
   return `${CONFIDENCE_TEXT[a.confidence]} Watch: ${a.flips.map((s) => s.label.toLowerCase()).join(', ')}.`;
 }
@@ -182,6 +219,12 @@ export function renderAdvice(a: Advice): string {
   }
   L.push(`**Confidence:** ${confidenceText(a)}`);
   L.push('');
+  if (a.problems.length) {
+    L.push('## Fix these inputs first');
+    L.push('');
+    for (const p of a.problems) L.push(`- ${p.message} The model has ${formatFact(p.key, p.value)}; check the units.`);
+    L.push('');
+  }
   L.push('| | As submitted | Corrected |');
   L.push('|---|---|---|');
   L.push(`| Lower-cost option | ${a.submitted.recommendation} | ${a.corrected.recommendation} |`);
@@ -204,6 +247,9 @@ export function renderAdvice(a: Advice): string {
     }
     L.push('');
     for (const f of a.corrections) L.push(`- **${f.rule.title}.** ${f.message} ${f.rule.why}${f.rule.source ? ` _Source: ${f.rule.source}._` : ''}`);
+    for (const f of a.superseded) {
+      L.push(`- _${f.rule.title} suggested ${formatFact(f.rule.benchmark!.input, f.rule.benchmark!.value)}; the more serious check above takes precedence._`);
+    }
     L.push('');
   }
 
@@ -239,13 +285,11 @@ export function renderAdvice(a: Advice): string {
     L.push('');
   }
 
-  if (a.assumed.length) {
-    L.push('## Not in the inputs, so assumed');
+  const firmUp = firmUpList(a);
+  if (firmUp.length) {
+    L.push('## Filled in for you');
     L.push('');
-    for (const k of a.assumed) {
-      const key = k as keyof Inputs;
-      L.push(`- ${FACT_BY_KEY[k]?.label ?? k}: ${formatFact(k, a.inputs[key] as number)}`);
-    }
+    for (const item of firmUp) L.push(`- ${item}`);
     L.push('');
   }
 
@@ -279,7 +323,10 @@ export function adviceSummary(a: Advice) {
     breakEvenStrike: Number.isFinite(a.breakEvenStrike) ? Math.round(a.breakEvenStrike * 100) / 100 : null,
     breakEvenEscalation: Number.isFinite(a.breakEvenEscalation) ? Math.round(a.breakEvenEscalation * 10000) / 10000 : null,
     premiumPerMWh: Number.isFinite(a.premiumPerMWh) ? Math.round(a.premiumPerMWh * 100) / 100 : null,
+    inputProblems: a.problems.map((p) => p.message),
+    rejected: a.rejected,
     corrections: a.corrections.map(brief),
+    superseded: a.superseded.map(brief),
     questions: a.questions.map(brief),
     notes: a.notes.map(brief),
     changeConditions: changeConditions(a),
@@ -287,4 +334,22 @@ export function adviceSummary(a: Advice) {
     inputs: a.inputs,
     correctedInputs: a.correctedInputs,
   };
+}
+
+/** Assumed or rejected inputs, each with where to get a reliable number. */
+export function firmUpList(a: Advice): string[] {
+  const out: string[] = [];
+  for (const r of a.rejected) {
+    const def = FACT_BY_KEY[r.key];
+    out.push(
+      `${def?.label ?? r.key}: the source gave ${JSON.stringify(r.given)}, which is ${r.reason}, so ${formatFact(r.key, a.inputs[r.key as keyof Inputs] as number)} was used.${def?.source ? ` Get it from: ${def.source}.` : ''}`,
+    );
+  }
+  const rejectedKeys = new Set(a.rejected.map((r) => r.key));
+  for (const k of a.assumed) {
+    if (rejectedKeys.has(k)) continue;
+    const def = FACT_BY_KEY[k];
+    out.push(`${def?.label ?? k}: ${formatFact(k, a.inputs[k as keyof Inputs] as number)}.${def?.source ? ` Get it from: ${def.source}.` : ''}`);
+  }
+  return out;
 }

@@ -1524,3 +1524,38 @@ details.disclosure[open] > summary {
     display: none;
   }
 }
+
+.field-error {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--critical);
+}
+
+.advice-section.problems {
+  padding: 10px 12px;
+  border: 1px solid var(--critical);
+  border-radius: var(--radius);
+  background: var(--critical-wash);
+}
+
+.data-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.data-figures .stat {
+  gap: 2px;
+  min-width: 0;
+}
+
+.data-figures .stat-value {
+  font-size: var(--step-2);
+}
+
+.sources {
+  margin: 0;
+  padding-left: 1.1em;
+  display: grid;
+  gap: 4px;
+}

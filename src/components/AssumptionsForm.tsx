@@ -5,6 +5,8 @@ interface Props {
   inputs: Inputs;
   onChange: (next: Inputs) => void;
   flags: Partial<Record<string, Severity>>;
+  /** Messages for values outside their possible range, by input key. */
+  errors: Partial<Record<string, string>>;
   onLoadExample: (which: 'example' | 'benchmark') => void;
 }
 
@@ -62,7 +64,7 @@ const DILIGENCE: { key: keyof Diligence; label: string }[] = [
   { key: 'scope2RevisionConsidered', label: 'GHG Protocol Scope 2 revision considered' },
 ];
 
-export function AssumptionsForm({ inputs, onChange, flags, onLoadExample }: Props) {
+export function AssumptionsForm({ inputs, onChange, flags, errors, onLoadExample }: Props) {
   const set = <K extends keyof Inputs>(key: K, value: Inputs[K]) => onChange({ ...inputs, [key]: value });
 
   const field = (f: FieldSpec) => (
@@ -76,6 +78,7 @@ export function AssumptionsForm({ inputs, onChange, flags, onLoadExample }: Prop
       suffix={f.suffix}
       help={f.help}
       flag={flags[f.key]}
+      error={errors[f.key]}
       onChange={(v) => set(f.key, v)}
     />
   );

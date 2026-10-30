@@ -42,8 +42,8 @@ if (teamFile) {
   }
 }
 
-const { inputs, assumed, ignored } = completeInputs(raw as Record<string, unknown>);
-const advice = advise(inputs, activeRules(playbook), { assumed });
+const { inputs, assumed, ignored, rejected } = completeInputs(raw as Record<string, unknown>);
+const advice = advise(inputs, activeRules(playbook), { assumed, rejected });
 
 if (json) {
   process.stdout.write(`${JSON.stringify({ ...adviceSummary(advice), ignoredKeys: ignored, teamChecks: playbook.custom.length, markdown: renderAdvice(advice) }, null, 2)}\n`);
