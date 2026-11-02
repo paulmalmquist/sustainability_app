@@ -6,17 +6,17 @@ import { fileURLToPath } from "node:url";
 var current = {
 	inflation: {
 		"breakeven10y": .0235,
-		"forward5y5y": .0231,
+		"forward5y5y": .023,
 		"cpiYoY": .0402,
 		"cpiYoYMonth": "2026-09",
 		"cpiPeak2022": .0898,
-		"asOf": "2026-10-28",
+		"asOf": "2026-10-30",
 		"source": "FRED: 10-year breakeven inflation (T10YIE), 5-year forward inflation expectation (T5YIFR), CPI (CPIAUCSL)"
 	},
 	rates: {
-		"treasury10y": .0516,
-		"baaCorporate": .0661,
-		"asOf": "2026-10-28",
+		"treasury10y": .0514,
+		"baaCorporate": .0659,
+		"asOf": "2026-10-29",
 		"source": "FRED: 10-year Treasury yield (DGS10), Moody's Baa corporate bond yield (DBAA)"
 	},
 	costOfCapital: {
@@ -38,86 +38,86 @@ var current = {
 	onPeak: {
 		"CAISO": {
 			"hub": "SP15 EZ Gen DA LMP Peak",
-			"onPeakPrice": 27.91,
+			"onPeakPrice": 27.93,
 			"days": 220
 		},
 		"PJM": {
 			"hub": "PJM WH Real Time Peak",
-			"onPeakPrice": 91.08,
+			"onPeakPrice": 91.07,
 			"days": 226
 		},
 		"MISO": {
 			"hub": "Indiana Hub RT Peak",
-			"onPeakPrice": 92.31,
-			"days": 46
+			"onPeakPrice": 93.39,
+			"days": 45
 		},
 		"ISO-NE": {
 			"hub": "Nepool MH DA LMP Peak",
-			"onPeakPrice": 80.41,
-			"days": 204
+			"onPeakPrice": 80.5,
+			"days": 203
 		}
 	},
 	markets: {
 		"ERCOT": {
 			"hub": "HB_NORTH",
-			"atcPrice": 34.8,
+			"atcPrice": 34.71,
 			"negativeHourShare": .0072,
 			"hours": 8734,
-			"period": "2025-10-26 to 2026-10-24",
-			"solarCapture": .689,
-			"windCapture": .8859
+			"period": "2025-10-30 to 2026-10-28",
+			"solarCapture": .6896,
+			"windCapture": .8876
 		},
 		"CAISO": {
 			"hub": "TH_SP15_GEN-APND",
-			"atcPrice": 24.73,
-			"negativeHourShare": .1636,
+			"atcPrice": 30.17,
+			"negativeHourShare": .0895,
 			"hours": 648,
-			"period": "2025-10-26 to 2026-10-26",
-			"solarCapture": .4333,
-			"windCapture": .9953
+			"period": "2025-10-30 to 2026-10-30",
+			"solarCapture": .5749,
+			"windCapture": .9251
 		},
 		"MISO": {
 			"hub": "INDIANA.HUB",
-			"atcPrice": 39.01,
+			"atcPrice": 54.18,
 			"negativeHourShare": 0,
 			"hours": 648,
-			"period": "2025-10-26 to 2026-10-26",
-			"solarCapture": .8705,
-			"windCapture": 1.0077
+			"period": "2025-10-30 to 2026-10-30",
+			"solarCapture": .9998,
+			"windCapture": .95
 		},
 		"SPP": {
 			"hub": "SPPSOUTH_HUB",
-			"atcPrice": 22.83,
-			"negativeHourShare": .1667,
+			"atcPrice": 27.34,
+			"negativeHourShare": .0895,
 			"hours": 648,
-			"period": "2025-10-26 to 2026-10-26",
-			"solarCapture": 1.6109,
-			"windCapture": .7264
+			"period": "2025-10-30 to 2026-10-30",
+			"solarCapture": 1.5258,
+			"windCapture": .8139
 		},
 		"NYISO": {
 			"hub": "CENTRL",
-			"atcPrice": 58.2,
+			"atcPrice": 55.81,
 			"negativeHourShare": 0,
 			"hours": 648,
-			"period": "2025-10-26 to 2026-10-26",
-			"windCapture": .9716
+			"period": "2025-10-30 to 2026-10-30",
+			"windCapture": 1.0163
 		},
 		"ISO-NE": {
 			"hub": ".H.INTERNAL_HUB",
-			"atcPrice": 66.2,
+			"atcPrice": 66.02,
 			"negativeHourShare": 0,
 			"hours": 648,
-			"period": "2025-10-26 to 2026-10-26",
-			"solarCapture": .7481,
-			"windCapture": .9834
+			"period": "2025-10-30 to 2026-10-30",
+			"solarCapture": .9065,
+			"windCapture": .9929
 		}
 	},
 	window: {
-		"start": "2025-10-26",
-		"end": "2026-10-25",
+		"start": "2025-10-30",
+		"end": "2026-10-29",
 		"sampledEveryDays": 14
 	},
-	generatedAt: "2026-10-29T21:02:44Z",
+	generatedAt: "2026-11-02T20:25:51Z",
 	sources: [
 		{
 			"id": "fred-inflation",
@@ -154,7 +154,7 @@ var current = {
 			"name": "Expected solar output by region (NREL PVWatts)",
 			"url": "https://pvwatts.nrel.gov/",
 			"status": "failed",
-			"detail": "HTTPSConnectionPool(host='developer.nrel.gov', port=443): Max retries exceeded with url: /api/pvwatts/v8.json?api_key=DEMO_KEY&lat=31.99&lon=-102.08&system_capacity=1000&module_type=0&losses=14&array_type=2&tilt=0&azimuth=180&dc_ac_ratio=1."
+			"detail": "HTTPSConnectionPool(host='developer.nrel.gov', port=443): Max retries exceeded with url: /api/pvwatts/v8.json?api_key=HTKQBPdrhjRQDhCwPtqqF6wDzhqBcKMHgLKKrbjH&lat=31.99&lon=-102.08&system_capacity=1000&module_type=0&losses=14&array_type=2&t"
 		},
 		{
 			"id": "eia-930",
