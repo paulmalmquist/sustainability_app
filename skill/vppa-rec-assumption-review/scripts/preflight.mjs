@@ -5,18 +5,18 @@ import { fileURLToPath } from "node:url";
 // src/engine/marketData.ts
 var current = {
 	inflation: {
-		"breakeven10y": .0235,
-		"forward5y5y": .023,
+		"breakeven10y": .0232,
+		"forward5y5y": .0226,
 		"cpiYoY": .0402,
 		"cpiYoYMonth": "2026-09",
 		"cpiPeak2022": .0898,
-		"asOf": "2026-10-30",
+		"asOf": "2026-11-06",
 		"source": "FRED: 10-year breakeven inflation (T10YIE), 5-year forward inflation expectation (T5YIFR), CPI (CPIAUCSL)"
 	},
 	rates: {
-		"treasury10y": .0514,
-		"baaCorporate": .0659,
-		"asOf": "2026-10-29",
+		"treasury10y": .0505,
+		"baaCorporate": .0651,
+		"asOf": "2026-11-05",
 		"source": "FRED: 10-year Treasury yield (DGS10), Moody's Baa corporate bond yield (DBAA)"
 	},
 	costOfCapital: {
@@ -38,13 +38,13 @@ var current = {
 	onPeak: {
 		"CAISO": {
 			"hub": "SP15 EZ Gen DA LMP Peak",
-			"onPeakPrice": 27.93,
-			"days": 220
+			"onPeakPrice": 27.84,
+			"days": 216
 		},
 		"PJM": {
 			"hub": "PJM WH Real Time Peak",
-			"onPeakPrice": 91.07,
-			"days": 226
+			"onPeakPrice": 91.74,
+			"days": 222
 		},
 		"MISO": {
 			"hub": "Indiana Hub RT Peak",
@@ -53,71 +53,71 @@ var current = {
 		},
 		"ISO-NE": {
 			"hub": "Nepool MH DA LMP Peak",
-			"onPeakPrice": 80.5,
-			"days": 203
+			"onPeakPrice": 81.01,
+			"days": 200
 		}
 	},
 	markets: {
 		"ERCOT": {
 			"hub": "HB_NORTH",
-			"atcPrice": 34.71,
+			"atcPrice": 34.86,
 			"negativeHourShare": .0072,
 			"hours": 8734,
-			"period": "2025-10-30 to 2026-10-28",
-			"solarCapture": .6896,
-			"windCapture": .8876
+			"period": "2025-11-06 to 2026-11-04",
+			"solarCapture": .6901,
+			"windCapture": .8865
 		},
 		"CAISO": {
 			"hub": "TH_SP15_GEN-APND",
-			"atcPrice": 30.17,
-			"negativeHourShare": .0895,
+			"atcPrice": 32.2,
+			"negativeHourShare": .1157,
 			"hours": 648,
-			"period": "2025-10-30 to 2026-10-30",
-			"solarCapture": .5749,
-			"windCapture": .9251
+			"period": "2025-11-06 to 2026-11-06",
+			"solarCapture": .5432,
+			"windCapture": 1.0294
 		},
 		"MISO": {
 			"hub": "INDIANA.HUB",
-			"atcPrice": 54.18,
+			"atcPrice": 61.51,
 			"negativeHourShare": 0,
 			"hours": 648,
-			"period": "2025-10-30 to 2026-10-30",
-			"solarCapture": .9998,
-			"windCapture": .95
+			"period": "2025-11-06 to 2026-11-06",
+			"solarCapture": .984,
+			"windCapture": .7879
 		},
 		"SPP": {
 			"hub": "SPPSOUTH_HUB",
-			"atcPrice": 27.34,
-			"negativeHourShare": .0895,
-			"hours": 648,
-			"period": "2025-10-30 to 2026-10-30",
-			"solarCapture": 1.5258,
-			"windCapture": .8139
+			"atcPrice": 27.43,
+			"negativeHourShare": .101,
+			"hours": 624,
+			"period": "2025-11-06 to 2026-11-06",
+			"solarCapture": 1.3233,
+			"windCapture": .8307
 		},
 		"NYISO": {
 			"hub": "CENTRL",
-			"atcPrice": 55.81,
+			"atcPrice": 74.78,
 			"negativeHourShare": 0,
 			"hours": 648,
-			"period": "2025-10-30 to 2026-10-30",
-			"windCapture": 1.0163
+			"period": "2025-11-06 to 2026-11-06",
+			"windCapture": 1.0825
 		},
 		"ISO-NE": {
 			"hub": ".H.INTERNAL_HUB",
-			"atcPrice": 66.02,
+			"atcPrice": 80.99,
 			"negativeHourShare": 0,
 			"hours": 648,
-			"period": "2025-10-30 to 2026-10-30",
-			"solarCapture": .9065,
-			"windCapture": .9929
+			"period": "2025-11-06 to 2026-11-06",
+			"solarCapture": .898,
+			"windCapture": .9954
 		}
 	},
 	window: {
-		"start": "2025-10-30",
-		"end": "2026-10-29",
+		"start": "2025-11-06",
+		"end": "2026-11-05",
 		"sampledEveryDays": 14
 	},
-	generatedAt: "2026-11-02T20:25:51Z",
+	generatedAt: "2026-11-09T20:52:18Z",
 	sources: [
 		{
 			"id": "fred-inflation",
