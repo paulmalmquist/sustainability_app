@@ -19,23 +19,23 @@ If Node isn’t available, apply the checks by hand: evaluate each check’s con
 
 Benchmarks come from public market data refreshed weekly (see "Market data" below) or, where no free source exists, from dated defaults. Strike and REC prices have no free feed: search the web for the latest LevelTen PPA Price Index and a current REC quote for the right product, tell the user what you found, and compare them with the model.
 
-## Market data (refreshed 2026-11-16)
+## Market data (refreshed 2026-11-23)
 
 The calculator already uses these. Quote them when you explain a correction.
 
-- Inflation bond markets expect over 10 years: 2.3%. Last 12 months (CPI, 2026-10): 4.08%. 2022 peak: 8.98%. _(FRED: 10-year breakeven inflation (T10YIE), 5-year forward inflation expectation (T5YIFR), CPI (CPIAUCSL), 2026-11-13)_
-- 10-year Treasury: 5%; Baa corporate bonds: 6.49%. _(FRED: 10-year Treasury yield (DGS10), Moody's Baa corporate bond yield (DBAA), 2026-11-12)_
+- Inflation bond markets expect over 10 years: 2.25%. Last 12 months (CPI, 2026-10): 4.08%. 2022 peak: 8.98%. _(FRED: 10-year breakeven inflation (T10YIE), 5-year forward inflation expectation (T5YIFR), CPI (CPIAUCSL), 2026-11-23)_
+- 10-year Treasury: 4.99%; Baa corporate bonds: 6.5%. _(FRED: 10-year Treasury yield (DGS10), Moody's Baa corporate bond yield (DBAA), 2026-11-20)_
 - US cost of capital: 6.96% overall; 5.21% to 8.48% across 94 industries. _(Aswath Damodaran, NYU Stern: cost of capital by industry, US companies, 2026-01-05)_
 - US fleet capacity factors: solar 24%, wind 34.3%, 2025-09 to 2026-08. _(EIA Electric Power Monthly, Table 6.07.B (utility-scale fleet, trailing 12 months))_
 
 | Market | Hub | Avg day-ahead price | Negative-price hours | Solar capture | Wind capture | Period |
 |---|---|---|---|---|---|---|
-| ERCOT | HB_NORTH | $34.95/MWh | 0.72% | 69% | 88.7% | 2025-11-13 to 2026-11-11 |
-| CAISO | TH_SP15_GEN-APND | $30.09/MWh | 8.95% | 56.6% | 92.7% | 2025-11-13 to 2026-11-13 |
-| MISO | INDIANA.HUB | $53.98/MWh | 0% | 100.5% | 94.4% | 2025-11-13 to 2026-11-13 |
-| SPP | SPPSOUTH_HUB | $26.74/MWh | 8.95% | 153.8% | 81.7% | 2025-11-13 to 2026-11-13 |
-| NYISO | CENTRL | $55.47/MWh | 0% | n/a | 101.6% | 2025-11-13 to 2026-11-13 |
-| ISO-NE | .H.INTERNAL_HUB | $66.15/MWh | 0% | 90.5% | 99.3% | 2025-11-13 to 2026-11-13 |
+| ERCOT | HB_NORTH | $34.89/MWh | 0.72% | 68.6% | 88.7% | 2025-11-20 to 2026-11-18 |
+| CAISO | TH_SP15_GEN-APND | $32.72/MWh | 11% | 54.9% | 103.6% | 2025-11-20 to 2026-11-20 |
+| MISO | INDIANA.HUB | $61.25/MWh | 0% | 98% | 78.3% | 2025-11-20 to 2026-11-20 |
+| SPP | SPPSOUTH_HUB | $27.09/MWh | 10.6% | 133.5% | 81.8% | 2025-11-20 to 2026-11-20 |
+| NYISO | CENTRL | $74.39/MWh | 0% | n/a | 108.6% | 2025-11-20 to 2026-11-20 |
+| ISO-NE | .H.INTERNAL_HUB | $80.88/MWh | 0% | 89.4% | 100.2% | 2025-11-20 to 2026-11-20 |
 
 Not refreshed this time: Expected solar output by region (NREL PVWatts) (failed); Hourly day-ahead prices, PJM (WESTERN HUB) (skipped).
 
